@@ -413,8 +413,9 @@
          (texels (PM_GetPage page)))
     (let loop ((y (max top 0)) (limit (min (+ top rows) viewheight)))
       (when (< y limit)
-        (setf! framebuffer (+ (* (+ y viewtop) screenwidth) viewleft pixx)
-               (plus-color (ref texels (+ (* column 64) (truncate (/ (* (- y top) 64) rows)))) (plus-dither level column (truncate (/ (* (- y top) 64) rows)))))
+        (let ((texel (truncate (/ (* (- y top) 64) rows))))
+          (setf! framebuffer (+ (* (+ y viewtop) screenwidth) viewleft pixx)
+                 (plus-color (ref texels (+ (* column 64) texel)) (plus-dither level column texel))))
         (loop (+ y 1) limit)))))
 
 (define (FarScalePost pixx height page column tilex tiley)
