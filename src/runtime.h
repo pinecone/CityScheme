@@ -6,6 +6,7 @@
 
 #include "atom.h"
 #include "error.h"
+#include "platform.h"
 #include "vm.h"
 #include <algorithm>
 #include <ankerl/unordered_dense.h>
@@ -829,6 +830,9 @@ struct Prim
 
 	VmOp stub;
 	Arity arity;
+#ifdef JET_PROFILE
+	PrimitiveProfile* profile{&g_profile.primitives.emplace_back(PrimitiveProfile{"<primitive>"})};
+#endif
 };
 
 inline bool operator==(Prim& p1, Prim& p2)

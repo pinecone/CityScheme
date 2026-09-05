@@ -3,6 +3,7 @@
 
 #include "runtime.h"
 #include "compiler.h"
+#include "platform.h"
 #include <algorithm>
 #include <cassert>
 #include <cerrno>

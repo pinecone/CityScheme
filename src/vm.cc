@@ -4,6 +4,7 @@
 #include "vm.h"
 
 #include "error.h"
+#include "platform.h"
 #include "runtime.h"
 #include <algorithm>
 #include <array>
@@ -470,7 +471,6 @@ JET_COLD void print_stack_trace(VmState* vm)
 			print_stack_frame(*vm, frames[i]);
 		}
 	}
-	profile_print(vm->debug.files);
 }
 
 Code* parse_debug_section(VmState* s, Code* p, Code* end, std::vector<std::string>& files,
@@ -660,6 +660,7 @@ LoadedProgram load_program(VmState& s, Code* bytecode, size_t n_bytes)
 	s.debug.code.emplace(toplevel_code, std::move(toplevel));
 	link_opcode_handlers(p, bytecode + n_bytes);
 	prog.code = p;
+	JET_PROFILE_PREPARE(s, bytecode, n_bytes);
 	return prog;
 }
 
@@ -1012,7 +1013,7 @@ JET_PRESERVE_NONE static void op_iter_impl(VM_OP_PARAMS)
 	{
 		// The coroutine `StructType` is held by the permanent `%coroutine` `Env` binding.
 		uint64_t type_key = std::bit_cast<uint64_t>(unbox<Struct>(value)->type);
-		JET_PROFILE_MISS(s, *frame, pc - OPCODE_SIZE, op->ic.dispatch_key, type_key);
+		JET_PROFILE_MISS(op->ic.dispatch_key, type_key);
 		op->ic.dispatch_key = type_key;
 		VmOp coro_handler = op_iter_next_coro<Op, outputs>;
 		std::memcpy(pc - OPCODE_SIZE, &coro_handler, sizeof(coro_handler));
@@ -1023,7 +1024,7 @@ JET_PRESERVE_NONE static void op_iter_impl(VM_OP_PARAMS)
 		JET_MUSTTAIL return die_iter_expected_cursor(VM_OP_ARGS);
 	}
 	Cursor* cursor = static_cast<Cursor*>(unbox<Struct>(value));
-	JET_PROFILE_MISS(s, *frame, pc - OPCODE_SIZE, op->ic.dispatch_key, std::bit_cast<uint64_t>(cursor->type));
+	JET_PROFILE_MISS(op->ic.dispatch_key, std::bit_cast<uint64_t>(cursor->type));
 	VmOp handler = outputs == 1 ? cursor->ops->next1 : cursor->ops->next2;
 	if (!handler) [[unlikely]]
 	{
@@ -1683,8 +1684,9 @@ JET_PRESERVE_NONE static void op_retv(VM_OP_PARAMS)
 
 void vm_exit(VmState& vm, int status)
 {
-	profile_print(vm.debug.files);
+#ifndef JET_PROFILE
 	vm.~VmState();
+#endif
 	std::exit(status);
 }
 
@@ -1942,8 +1944,8 @@ JET_NOINLINE JET_PRESERVE_NONE static void op_call_slot_slow(VM_OP_PARAMS)
 {
 	OP_call_slot* op = reinterpret_cast<OP_call_slot*>(pc);
 	Slot* sl = unbox<Slot>(frame->closure->captures[op->upvalue_idx]);
-	JET_PROFILE_MISS(s, *frame, pc - OPCODE_SIZE, op->ic_slot, std::bit_cast<uint64_t>(sl));
 	callee = sl->value;
+	JET_PROFILE_CALL_MISS(op->ic_atom, callee);
 	frame->code = pc + sizeof(*op);
 	VmOp stub = resolve_callee(s, callee, op->nargs, tail);
 	op->ic_slot = std::bit_cast<uint64_t>(sl);
@@ -2008,7 +2010,7 @@ JET_NOINLINE JET_PRESERVE_NONE static void op_call_atom_slow(VM_OP_PARAMS)
 	{
 		callee = frame->closure->captures[op->idx];
 	}
-	JET_PROFILE_MISS(s, *frame, pc - OPCODE_SIZE, op->ic_atom, callee.bits);
+	JET_PROFILE_CALL_MISS(op->ic_atom, callee);
 	frame->code = pc + sizeof(*op);
 	VmOp stub = resolve_callee(s, callee, op->nargs, tail);
 	op->ic_atom = callee.bits;
@@ -2072,7 +2074,7 @@ template <int N>
 JET_NOINLINE JET_PRESERVE_NONE static void op_call_self_impl(VM_OP_PARAMS)
 {
 	JET_GC_CHECK();
-	JET_PROFILE_MISS(s, *frame, pc - OPCODE_SIZE, 0, 0);
+	JET_PROFILE_MISS(0, 0);
 	OP_call_self* op = reinterpret_cast<OP_call_self*>(pc);
 	frame->code = pc + sizeof(*op);
 	check_arity(s, frame->closure->arity, op->nargs);
@@ -2145,13 +2147,13 @@ JET_REPLICATE(X, call_self, "cself")
 	main_coro->running_index = 0;
 	vm.running.push(main_coro);
 
-	JET_PROFILE_BEGIN();
+	JET_PROFILE_BEGIN(vm);
 	Frame* frame = &vm.frames.back();
 	Code* pc = frame->code;
 	Atom* stack_top = vm.stack_top;
 	VmOp h = decode_op(pc);
 	pc += OPCODE_SIZE;
-	JET_PROFILE_OP(pc[-1]);
+	JET_PROFILE_OP(pc - OPCODE_SIZE);
 	JET_TRACE_STEP(vm, frame, pc, stack_top);
 	h(vm, frame, pc, stack_top, Atom{}, nullptr, vm.stack_base, vm.stack_base + frame->base);
 
@@ -2160,6 +2162,7 @@ JET_REPLICATE(X, call_self, "cself")
 
 Atom jet_enter_vm(VmState& vm, Atom proc, Atom* args, size_t n_args)
 {
+	JET_PROFILE_HOST;
 	Lambda* la = slow_unbox<Lambda>(vm, proc);
 	check_arity(vm, la->arity, n_args);
 
@@ -2167,7 +2170,10 @@ Atom jet_enter_vm(VmState& vm, Atom proc, Atom* args, size_t n_args)
 	JET_DIE_WHEN(&vm, vm.stack_top + n_args > vm.stack_end - STACK_SLACK, "jet_enter_vm: stack overflow");
 
 	Atom* window = vm.stack_base + base;
-	copy_atoms<4, CopyVariadic::Yes>(window, args, n_args);
+	if (n_args != 0)
+	{
+		copy_atoms<4, CopyVariadic::Yes>(window, args, n_args);
+	}
 	vm.stack_top = window + n_args;
 
 	uint64_t previous_host_token = vm.host_token;

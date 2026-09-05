@@ -1,0 +1,104 @@
+#!/usr/bin/env python3
+
+import os
+from pathlib import Path
+import re
+import subprocess
+import tempfile
+import time
+
+
+jet = os.environ.get("JET", "../build/jet-profile")
+
+
+def run(arguments, data=None, status=0):
+    result = subprocess.run(arguments, input=data, capture_output=True)
+    if result.returncode != status:
+        raise AssertionError(result.stderr.decode())
+    return result
+
+
+def rows(report, heading):
+    section = report.split(heading, 1)[1].split("\n\n", 1)[0]
+    return [line.split() for line in section.splitlines() if re.match(r"\s+\d+\s", line)]
+
+
+def check(report):
+    assert report.count("--- JET_PROFILE ---") == 1
+    primitives = rows(report, "primitive samples (")
+    counts = {row[-1]: int(row[0]) for row in primitives}
+    assert counts == {"truncate": 20}, counts
+    functions = rows(report, "function samples (")
+    total = int(re.search(r"opcodes dispatched: (\d+)", report)[1])
+    assert sum(int(row[0]) for row in functions) == total - 1
+    assert any("loop@" in row[-1] for row in functions)
+    section = report.split("IC misses by instruction", 1)[1].split("\n\n", 1)[0]
+    sites = [line.split() for line in section.splitlines() if re.match(r"\s+(?:cl|cu)\w*\s", line)]
+    assert sites, "missing cache-miss rows"
+    assert len({row[-1] for row in sites}) == len(sites)
+    for row in sites:
+        executions, misses = int(row[1]), int(row[2])
+        assert 0 < misses <= executions
+        assert sum(map(int, row[4:8])) == misses
+    sampled = int(re.search(r"wall samples: (\d+)", report)[1])
+    section = report.split("opcode samples (", 1)[1].split("\n\n", 1)[0]
+    assert sum(map(int, re.findall(r"^\s+.+?\s+(\d+)\s+[\d.]+%$", section, re.M))) == sampled
+    return counts, {row[-1]: (int(row[1]), int(row[2]), tuple(row[4:8])) for row in sites}
+
+
+with tempfile.TemporaryDirectory() as directory:
+    source = Path(directory) / "profile.ss"
+    source.write_text("""(define truncate (%prim "truncate"))
+(define alias truncate)
+(define = (%prim "="))
+(define - (%prim "-"))
+(define (loop count)
+  (if (= count 0) 0
+      (begin (truncate count) (alias count) (loop (- count 1)))))
+(loop 10)
+""")
+    options = ["--no-prelude", "--no-inline", "--no-lift-lambdas", str(source)]
+    direct = run([jet, "run", *options])
+    bytecode = run([jet, "compile", *options]).stdout
+    loaded = run([jet, "exec", "-"], bytecode)
+    assert direct.stdout == loaded.stdout
+    assert check(direct.stderr.decode()) == check(loaded.stderr.decode())
+
+expression = r'''(define %check (%prim "%check"))
+((%prim "display") "ready\n")
+($check ((%prim "eq?") ((%prim "read-char") ((%prim "open-input-file") "/dev/stdin")) #\x))'''
+with subprocess.Popen([jet, "eval", "--no-prelude", expression], stdin=subprocess.PIPE,
+                      stdout=subprocess.PIPE, stderr=subprocess.PIPE) as process:
+    ready = process.stdout.readline()
+    time.sleep(0.025)
+    output, report = process.communicate(b"x", timeout=5)
+    assert process.returncode == 0, report.decode()
+    assert ready == b"ready\n", ready
+    samples = {row[-1]: int(row[1]) for row in rows(report.decode(), "primitive samples (")}
+    assert samples["read-char"] > 0
+
+for expression, status in [('1', 0), ('((%prim "exit") 0)', 0),
+                           ('((%prim "exit") 7)', 7), ('((%prim "car") 1)', 1)]:
+    exited = run([jet, "eval", "--no-prelude", expression], status=status)
+    assert exited.stderr.count(b"--- JET_PROFILE ---") == 1
+
+failed = run([jet, "eval", "--no-prelude", '('], status=1)
+assert b"--- JET_PROFILE ---" not in failed.stderr
+
+for primitive, status in [("process-exit", 7), ("process-fail", 1)]:
+    exited = run(["../build/profile/profile-test", f'((%prim "{primitive}"))'], status=status)
+    report = exited.stderr.decode()
+    assert report.count("--- JET_PROFILE ---") == 1
+    counts = {row[-1]: int(row[0]) for row in rows(report, "primitive samples (")}
+    assert counts == {primitive: 1}, counts
+
+native = run(["../build/profile/profile-test"])
+report = native.stderr.decode()
+assert report.count("--- JET_PROFILE ---") == 1
+assert "host-to-VM calls: 2 calls," in report
+assert re.search(r"p50<=[\d.]+  p90<=[\d.]+  p99<=[\d.]+  max [\d.]+", report)
+assert "<lambda>@" in report
+assert "host primitives include time between callbacks" in report
+samples = {row[-1]: int(row[1]) for row in rows(report, "primitive samples (")}
+assert samples["sample"] > 0
+print("===== profile tests passed =====")

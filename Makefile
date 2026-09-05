@@ -47,8 +47,8 @@ ifeq ($(VARIANT),debug)
 else ifeq ($(VARIANT),profile)
 	OPT		 := -O2 -g3
 	SUFFIX := -profile
-	PROFILE_DEF := -DJET_PROFILE
-	LDOPT	 :=
+	PROFILE_DEF := -DJET_PROFILE -pthread
+	LDOPT	 := -pthread
 else ifeq ($(VARIANT),release)
 	OPT		 := -O2 -g3
 	SUFFIX :=
@@ -104,7 +104,7 @@ SOKOL_CXXFLAGS := $(VENDOR_CXXFLAGS) $(SOKOL_LANG)
 
 CORE_CC := $(wildcard $(SRC)/*.cc)
 ALL_CC := $(CORE_CC) $(MODULE_CC)
-ALL_CPP := $(ALL_CC) $(wildcard $(SRC)/*.h) $(MODULE_CPP)
+ALL_CPP := $(ALL_CC) $(wildcard $(SRC)/*.h) $(MODULE_CPP) tests/profile.cc
 SOKOL_OBJ := $(patsubst %.cc,$(OBJDIR)/%.o,$(MODULE_SOKOL_CC))
 VENDOR_OBJ := $(patsubst %.cpp,$(OBJDIR)/%.o,$(MODULE_VENDOR_CC))
 ALL_OBJ := $(patsubst %.cc,$(OBJDIR)/%.o,$(ALL_CC)) $(SOKOL_OBJ) $(VENDOR_OBJ)
@@ -116,7 +116,7 @@ SANITIZE_MARKER := Sanitizer
 SANITIZE_ENV := ASAN_OPTIONS='$(SANITIZE_OPTIONS)' UBSAN_OPTIONS='$(SANITIZE_OPTIONS)' \
 								JET_MODULE_TESTS='$(MODULE_TESTS)' JET_TEST_DIAGNOSTICS=1
 
-DEPS := $(ALL_OBJ:.o=.d)
+DEPS := $(ALL_OBJ:.o=.d) $(OBJDIR)/tests/profile.d
 
 # --- Targets -------------------------------------------------------------
 
@@ -158,6 +158,8 @@ test-profile:
 	$(Q)$(MAKE) VARIANT=profile
 	@printf '  TEST profile\n'
 	$(Q)cd tests && JET=../build/jet-profile JET_MODULE_TESTS='$(MODULE_TESTS)' ./run-tests
+	$(Q)$(MAKE) VARIANT=profile $(BUILD)/profile/profile-test
+	$(Q)cd tests && JET=../build/jet-profile ./run-profile-tests
 
 show-sanitizers:
 	@list=$$($(CXX) $(CXXFLAGS) -x c++ /dev/null -c -o /dev/null -### 2>&1 | tr ' ' '\n' | \
@@ -216,6 +218,11 @@ tags: | $(BUILD)
 $(JET_BIN): $(ALL_OBJ) | $(BUILD)
 	@printf '  LINK  %s\n' '$@'
 	$(Q)$(CXX) $(LDFLAGS) -o $@ $^
+
+$(OBJDIR)/profile-test: $(OBJDIR)/tests/profile.o \
+                      $(patsubst %.cc,$(OBJDIR)/%.o,$(filter-out $(SRC)/main.cc,$(CORE_CC)))
+	@printf '  LINK  %s\n' '$@'
+	$(Q)$(CXX) $(LDOPT) -o $@ $^
 
 $(OBJDIR)/src/main.o: $(PRELUDE_H) $(MODULES_H)
 

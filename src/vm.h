@@ -7,6 +7,7 @@
 #include "atom.h"
 #include "debug.h"
 #include "opcodes.h"
+#include "platform.h"
 #include <ankerl/unordered_dense.h>
 #include <cstddef>
 #include <cstdint>
@@ -20,38 +21,6 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-
-#if __has_cpp_attribute(clang::preserve_none)
-#define JET_PRESERVE_NONE [[clang::preserve_none]]
-#else
-#define JET_PRESERVE_NONE
-#endif
-
-#if __has_cpp_attribute(gnu::always_inline)
-#define JET_ALWAYS_INLINE [[gnu::always_inline]]
-#else
-#define JET_ALWAYS_INLINE
-#endif
-
-#if __has_cpp_attribute(gnu::noinline)
-#define JET_NOINLINE [[gnu::noinline]]
-#else
-#define JET_NOINLINE
-#endif
-
-#if __has_cpp_attribute(gnu::cold)
-#define JET_COLD [[gnu::cold]]
-#else
-#define JET_COLD
-#endif
-
-#if __has_cpp_attribute(clang::musttail)
-#define JET_MUSTTAIL [[clang::musttail]]
-#elif __has_cpp_attribute(gnu::musttail)
-#define JET_MUSTTAIL [[gnu::musttail]]
-#else
-#define JET_MUSTTAIL
-#endif
 
 struct Arity
 {
@@ -460,7 +429,11 @@ private:
 class Env
 {
 public:
-	void bind(std::string_view name, Atom atom) { items_[std::string{name}] = atom; }
+	void bind(std::string_view name, Atom atom)
+	{
+		items_[std::string{name}] = atom;
+		JET_PROFILE_BIND(name, atom);
+	}
 
 	Atom* lookup(std::string_view name)
 	{
@@ -638,7 +611,7 @@ extern ObjShape g_shape_by_tag[jet_tag::HEAP_END];
 	{                                                                                                        \
 		VmOp h = decode_op(pc);                                                                                \
 		pc += OPCODE_SIZE;                                                                                   \
-		JET_PROFILE_OP(pc[-1]);                                                                             \
+		JET_PROFILE_OP(pc - OPCODE_SIZE);                                                                  \
 		JET_TRACE_STEP(s, frame, pc, stack_top);                                                            \
 		JET_MUSTTAIL return h(VM_OP_ARGS);                                                                  \
 	} while (0)

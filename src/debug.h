@@ -8,9 +8,11 @@
 #include <cstdint>
 #include <ctime>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "opcodes.h"
+#include "platform.h"
 
 #ifdef JET_DEBUG
 #  include <cstdio>
@@ -58,7 +60,9 @@ void trace_step(VmState& s, Frame* frame, Code* pc, Atom* stack_top);
 
 #ifdef JET_PROFILE
 
-#include <unordered_map>
+#include <atomic>
+#include <deque>
+#include <thread>
 
 enum class FieldReceiver : uint8_t
 {
@@ -86,151 +90,225 @@ enum class FieldOutcome : uint8_t
 struct IcMisses
 {
 	uint64_t first{};
+	uint64_t same_code{};
 	uint64_t changed{};
 	uint64_t invalidated{};
 
-	uint64_t total() const { return first + changed + invalidated; }
+	uint64_t total() const { return first + same_code + changed + invalidated; }
 };
 
 struct FieldProfile
 {
-	uint64_t count;
-	uint64_t outcome_counts[static_cast<size_t>(FieldOutcome::Count)];
-	uint64_t outcome_ticks[static_cast<size_t>(FieldOutcome::Count)];
+	uint64_t count{};
+	uint64_t outcome_counts[static_cast<size_t>(FieldOutcome::Count)]{};
+};
+
+struct WorkProfile
+{
+	uint64_t count{};
+	uint64_t samples{};
+};
+
+struct PrimitiveProfile
+{
+	std::string name;
+	WorkProfile work{};
+};
+
+struct SiteProfile
+{
+	const Code* owner{};
+	size_t offset{};
+	uint8_t op{};
+	WorkProfile work{};
+	IcMisses misses{};
+	const Code* callee_code{};
+};
+
+struct ProfileContext
+{
+	uint8_t op{};
+	SiteProfile* site{};
+	FieldProfile* field{};
+	size_t outcome{};
+	bool linked{};
+};
+
+struct ProfileDurations
+{
+	uint64_t count{};
+	uint64_t total{};
+	uint64_t minimum{UINT64_MAX};
+	uint64_t maximum{};
+	uint64_t buckets[1024]{};
+
+	void add(uint64_t ns);
+	uint64_t quantile(double fraction) const;
 };
 
 struct Profile
 {
-	uint64_t op_counts[256];
-	uint64_t op_ticks[256];
-	uint64_t ic_misses[256];
-	IcMisses ic_misses_no_site;
-	std::unordered_map<uint64_t, IcMisses> ic_sites;
-	FieldProfile fields[256][static_cast<size_t>(FieldReceiver::Count)];
-	uint64_t pair_after[256][256];
-	uint64_t pair_ticks[256][256];
-	uint64_t lambda_calls;
-	uint64_t prim_calls;
-	uint64_t gc_collections;
-	uint64_t gc_ticks;
-	uint64_t host_ticks;
-	std::vector<uint64_t> gc_pauses;
-	uint64_t start_ticks;
-	uint64_t start_ns;
-	uint64_t last_stamp;
-	uint8_t last_op;
-	FieldProfile* pending_field;
-	size_t pending_outcome;
+	uint64_t op_counts[256]{};
+	uint64_t op_samples[256]{};
+	uint64_t ic_misses[256]{};
+	uintptr_t code_begin{};
+	size_t code_size{};
+	std::vector<uint32_t> site_index;
+	std::vector<SiteProfile> sites;
+	std::deque<PrimitiveProfile> primitives;
+	FieldProfile fields[256][static_cast<size_t>(FieldReceiver::Count)]{};
+	uint64_t pair_after[256][256]{};
+	uint64_t lambda_calls{};
+	uint64_t prim_calls{};
+	uint64_t gc_collections{};
+	uint64_t gc_samples{};
+	uint64_t host_samples{};
+	uint64_t entry_samples{};
+	uint64_t start_ns{};
+	ProfileContext context;
+	ProfileDurations gc_pauses;
+	ProfileDurations host_calls;
+	std::atomic<uint64_t*> active{};
+	std::jthread sampler;
+
+	struct GcTimer
+	{
+		Profile& profile;
+		uint64_t start;
+		uint64_t* samples;
+
+		explicit GcTimer(Profile& profile);
+		~GcTimer();
+	};
+
+	struct HostTimer
+	{
+		Profile& profile;
+		uint64_t start;
+		ProfileContext context;
+		uint64_t* samples;
+
+		explicit HostTimer(Profile& profile);
+		~HostTimer();
+	};
+
+	~Profile();
+	void sample();
+	void begin();
+	void stop();
+	void bind(std::string_view name, Atom atom);
+	void prepare(const VmState& state, const Code* code, size_t size);
+
+	void select(uint64_t* samples)
+	{
+		active.store(samples, std::memory_order_release);
+	}
+
+	JET_ALWAYS_INLINE void op(const Code* instruction)
+	{
+		uint8_t op{instruction[OPCODE_SIZE - 1]};
+		if (context.linked)
+		{
+			++pair_after[context.op][op];
+		}
+		++op_counts[op];
+		context = {.op = op, .linked = true};
+
+		uint64_t* samples{&op_samples[op]};
+		uintptr_t offset{reinterpret_cast<uintptr_t>(instruction) - code_begin};
+		if (offset < code_size)
+		{
+			SiteProfile& site{sites[site_index[offset / OPCODE_SIZE]]};
+			++site.work.count;
+			context.site = &site;
+			samples = &site.work.samples;
+		}
+		select(samples);
+	}
+
+	void primitive(PrimitiveProfile* primitive)
+	{
+		++prim_calls;
+		++primitive->work.count;
+		select(&primitive->work.samples);
+	}
+
+	void field(Opcode op, FieldReceiver receiver, bool hit)
+	{
+		FieldProfile& field{fields[static_cast<size_t>(op)][static_cast<size_t>(receiver)]};
+		context.field = &field;
+		context.outcome = hit ? 0 : 2;
+		++field.count;
+		++field.outcome_counts[context.outcome];
+	}
+
+	void key_miss()
+	{
+		FieldProfile& field{*context.field};
+		--field.outcome_counts[context.outcome];
+		context.outcome |= 1;
+		++field.outcome_counts[context.outcome];
+	}
+
+	void miss(uint64_t cached, uint64_t current, const Code* code = nullptr)
+	{
+		++ic_misses[context.op];
+		SiteProfile* site{context.site};
+		if (site == nullptr)
+		{
+			return;
+		}
+		if (cached == 0)
+		{
+			++site->misses.first;
+		}
+		else if (code != site->callee_code)
+		{
+			++site->misses.changed;
+		}
+		else if (cached == current)
+		{
+			++site->misses.invalidated;
+		}
+		else if (code != nullptr)
+		{
+			++site->misses.same_code;
+		}
+		else
+		{
+			++site->misses.changed;
+		}
+		site->callee_code = code;
+	}
 };
 
 extern Profile g_profile;
 
-constexpr uint64_t ic_site_key(uint32_t file, uint32_t line, uint8_t op)
-{
-	return static_cast<uint64_t>(file) << 40 | static_cast<uint64_t>(line) << 8 | op;
-}
-
 inline uint64_t profile_wall_ns()
 {
-	timespec ts;
-	clock_gettime(CLOCK_MONOTONIC, &ts);
-	return static_cast<uint64_t>(ts.tv_sec) * 1000000000ULL + static_cast<uint64_t>(ts.tv_nsec);
+	timespec stamp;
+	clock_gettime(CLOCK_MONOTONIC, &stamp);
+	return static_cast<uint64_t>(stamp.tv_sec) * 1000000000ULL + static_cast<uint64_t>(stamp.tv_nsec);
 }
 
-inline uint64_t profile_ticks()
-{
-#if defined(__aarch64__)
-	return __builtin_readcyclecounter();
-#elif defined(__x86_64__)
-	return __builtin_ia32_rdtsc();
-#else
-#error "profile_ticks: unsupported architecture"
-#endif
-}
-
-inline void profile_op(uint8_t op)
-{
-	uint64_t now{profile_ticks()};
-	uint8_t previous{g_profile.last_op};
-	if (g_profile.last_stamp != 0) [[likely]]
-	{
-		uint64_t ticks{now - g_profile.last_stamp};
-		if (previous == static_cast<uint8_t>(Opcode::return_to_host))
-		{
-			g_profile.host_ticks += ticks;
-		}
-		else
-		{
-			g_profile.op_ticks[previous] += ticks;
-		}
-		g_profile.pair_ticks[previous][op] += ticks;
-		if (g_profile.pending_field != nullptr)
-		{
-			g_profile.pending_field->outcome_ticks[g_profile.pending_outcome] += ticks;
-			g_profile.pending_field = nullptr;
-		}
-	}
-	++g_profile.op_counts[op];
-	++g_profile.pair_after[previous][op];
-	g_profile.last_op = op;
-	g_profile.last_stamp = now;
-}
-
-#define JET_PROFILE_OP(op) profile_op(op)
+#define JET_PROFILE_OP(instruction) g_profile.op(instruction)
 #define JET_PROFILE_LAMBDA (++g_profile.lambda_calls)
-#define JET_PROFILE_PRIM (++g_profile.prim_calls)
+#define JET_PROFILE_PRIM g_profile.primitive(unbox<Prim>(callee)->profile)
 #define JET_PROFILE_GC (++g_profile.gc_collections)
-inline void profile_field(Opcode op, FieldReceiver receiver, bool hit)
-{
-	FieldProfile& field{g_profile.fields[static_cast<size_t>(op)][static_cast<size_t>(receiver)]};
-	g_profile.pending_field = &field;
-	g_profile.pending_outcome = hit ? 0 : 2;
-	++field.count;
-	++field.outcome_counts[g_profile.pending_outcome];
-}
-
-inline void profile_key_miss()
-{
-	FieldProfile& field{*g_profile.pending_field};
-	--field.outcome_counts[g_profile.pending_outcome];
-	g_profile.pending_outcome |= 1;
-	++field.outcome_counts[g_profile.pending_outcome];
-}
-
-#define JET_PROFILE_FIELD_DISPATCH(op, receiver, hit) profile_field(op, receiver, hit)
-#define JET_PROFILE_FIELD_KEY_MISS() profile_key_miss()
-
-struct ProfileGcTimer
-{
-	uint64_t start{profile_ticks()};
-
-	~ProfileGcTimer()
-	{
-		uint64_t ticks{profile_ticks() - start};
-		g_profile.gc_ticks += ticks;
-		g_profile.gc_pauses.push_back(ticks);
-		// Excludes the collection from the charge to the opcode that
-		// triggered it.
-		g_profile.last_stamp += ticks;
-	}
-};
-#define JET_PROFILE_GC_TIMER ProfileGcTimer _jet_gc_timer{}
-#define JET_PROFILE_BEGIN()                                                                                 \
-	do                                                                                                       \
-	{                                                                                                        \
-		g_profile.start_ticks = profile_ticks();                                                             \
-		g_profile.start_ns = profile_wall_ns();                                                              \
-	} while (0)
-
-void profile_miss(const VmState& state, const Frame& frame, const Code* instruction,
-                  uint64_t cached, uint64_t current);
-
-#define JET_PROFILE_MISS(state, frame, instruction, cached, current)                                  \
-	profile_miss(state, frame, instruction, cached, current)
+#define JET_PROFILE_FIELD_DISPATCH(op, receiver, hit) g_profile.field(op, receiver, hit)
+#define JET_PROFILE_FIELD_KEY_MISS() g_profile.key_miss()
+#define JET_PROFILE_GC_TIMER Profile::GcTimer profile_gc_timer{g_profile}
+#define JET_PROFILE_BEGIN(vm) profile_begin(vm)
+#define JET_PROFILE_MISS(cached, current) g_profile.miss(cached, current)
+#define JET_PROFILE_CALL_MISS(cached, current) \
+	g_profile.miss(cached, current.bits, \
+	               is_type<jet::Type::Procedure>(current) ? unbox<Lambda>(current)->code : nullptr)
+#define JET_PROFILE_HOST Profile::HostTimer profile_host_timer{g_profile}
+#define JET_PROFILE_BIND(name, atom) g_profile.bind(name, atom)
+#define JET_PROFILE_PREPARE(state, code, size) g_profile.prepare(state, code, size)
 
 FieldReceiver profile_field_receiver(Atom object);
-
-void profile_print(const std::vector<std::string>& files);
+void profile_begin(VmState& vm);
 
 #else
 
@@ -241,10 +319,12 @@ void profile_print(const std::vector<std::string>& files);
 #define JET_PROFILE_FIELD_DISPATCH(op, kind, hit) ((void)0)
 #define JET_PROFILE_FIELD_KEY_MISS() ((void)0)
 #define JET_PROFILE_GC_TIMER ((void)0)
-#define JET_PROFILE_BEGIN() ((void)0)
-#define JET_PROFILE_MISS(state, frame, instruction, cached, current) ((void)0)
-
-inline void profile_print(const std::vector<std::string>&) {}
+#define JET_PROFILE_BEGIN(vm) ((void)0)
+#define JET_PROFILE_MISS(cached, current) ((void)0)
+#define JET_PROFILE_CALL_MISS(cached, current) ((void)0)
+#define JET_PROFILE_HOST ((void)0)
+#define JET_PROFILE_BIND(name, atom) ((void)0)
+#define JET_PROFILE_PREPARE(state, code, size) ((void)0)
 
 #endif
 
