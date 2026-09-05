@@ -77,6 +77,12 @@
       (display (string-append "demo: frames=" (number->string demo-frames)
                               " ticks=" (number->string (* demo-frames DEMOTICS))
                               " ms=" (number->string elapsed)
+                              (if demo-headless
+                                  (string-append " fps="
+                                    (if (> elapsed 0)
+                                        (number->string (/ (round (/ (* 10000 demo-frames) elapsed)) 10))
+                                        "n/a"))
+                                  "")
                               " checksum=" (number->string checksum) "\n"))))
   (set! demorecord #f)
   (set! demoplayback #f))
