@@ -63,7 +63,7 @@ JET_BIN := $(BUILD)/jet$(SUFFIX)
 
 # --- Flags ---------------------------------------------------------------
 
-CXXFLAGS := -std=c++20 -fno-exceptions -fno-rtti \
+CXXFLAGS := -stdlib=libc++ -std=c++20 -fno-exceptions -fno-rtti \
 						-Wall -Werror -pipe -Wold-style-cast -Wextra -Wno-unused-parameter \
 						$(OPT) $(PROFILE_DEF) -I$(SRC) -I$(BUILD) -Ivendor
 
@@ -94,6 +94,7 @@ else
 endif
 endif
 
+LDOPT += -stdlib=libc++ -fuse-ld=lld --rtlib=compiler-rt --unwindlib=libunwind
 LDFLAGS	 := $(LDOPT) $(MODULE_LDFLAGS)
 
 # Third-party code, so warnings-as-errors and the house warning set do not apply.
