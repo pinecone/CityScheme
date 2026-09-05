@@ -215,13 +215,14 @@
   (VL_Startup)
   (IN_Startup)
   (PM_Startup)
-  (SD_Startup)
+  (unless demo-session (SD_Startup))
   (CA_Startup)
-  (InitDigiMap)
-  (SD_SetDigiDevice sds_SoundBlaster)
-  ;; Every sound without a digitized version, which is every pickup, plays on the speaker.
-  (SD_SetSoundMode sdm_PC)
-  (ReadConfig)
+  (unless demo-session
+    (InitDigiMap)
+    (SD_SetDigiDevice sds_SoundBlaster)
+    ;; Every sound without a digitized version, which is every pickup, plays on the speaker.
+    (SD_SetSoundMode sdm_PC)
+    (ReadConfig))
   (CA_CacheGrChunk STARTFONT)
   (LoadLatchMem)
   (BuildTables)

@@ -18,7 +18,9 @@
 (include "WL_MENU.ss")
 (include "WL_MAIN.ss")
 (include "ID_VL.ss")
+(include "demo-options.ss")
 (include "plus.ss")
+(include "demo.ss")
 
 (CheckForEpisodes)
 (Patch386)
@@ -41,44 +43,40 @@
       (set! title-work 0)
       (set! title-update now))))
 
-;; sokol allows one image update per frame, so only the driver below displays a framebuffer.
-(set! vl-vbl (lambda (count) (IN_Yield)))
-
-;; The game runs in a coroutine, so a key wait yields one frame instead of
-;; blocking the frame callback.
-(define game
-  (let/coro yield ()
-    (set! in-yield yield)
-    (StartCPMusic INTROSONG)
-    (PG13)
-    (let outer ()
-      (set! ingame #f)
-      (DemoLoop)
-      (set! ingame #t)
-      (DrawPlayScreen)
-      (if loadedgame
+(define (run-game)
+  (StartCPMusic INTROSONG)
+  (PG13)
+  (let outer ()
+    (set! ingame #f)
+    (DemoLoop)
+    (set! ingame #t)
+    (DrawPlayScreen)
+    (if loadedgame
+        (begin
+          (set! startgame #f)
+          (set! loadedgame #f)
+          (StartMusic)
+          (DrawLevel)
+          (set! playstate ex_stillplaying))
+        (start-level))
+    (let play ()
+      (if (game-step)
           (begin
-            (set! startgame #f)
-            (set! loadedgame #f)
-            (StartMusic)
-            (DrawLevel)
-            (set! playstate ex_stillplaying))
-          (start-level))
-      (let play ()
-        (if (game-step)
-            (begin
-              (StartCPMusic INTROSONG)
-              (outer))
-            (begin
-              (yield #f)
-              (play)))))))
+            (StartCPMusic INTROSONG)
+            (outer))
+          (begin
+            (IN_Yield)
+            (play))))))
+
+(define game #f)
 
 (define (frame)
   (let ((frame-start (time-monotonic)))
     (IN_PollKeyboard)
-    (CalcTics)
-    (set! TimeCount (+ TimeCount tics))
-    (SD_Service)
+    (unless demo-session
+      (CalcTics)
+      (set! TimeCount (+ TimeCount tics))
+      (SD_Service))
     (coro/next game #f)
     ;; The host presents the current visible linear RAM image.  The explicit
     ;; display page remains for reference copies, but direct reference writes
@@ -86,4 +84,17 @@
     (dos:display-framebuffer framebuffer)
     (update-title frame-start)))
 
-(dos:frame-loop "Wolfenstein 3D" screenwidth screenheight 'crt frame)
+(if demo-headless
+    (run-demo)
+    (begin
+      ;; sokol allows one image update per frame, so only the driver displays a framebuffer.
+      (set! vl-vbl (lambda (count) (IN_Yield)))
+      (set! game
+        (let/coro yield ()
+          (set! in-yield yield)
+          (if demo-session
+              (begin
+                (run-demo)
+                (dos:request-quit))
+              (run-game))))
+      (dos:frame-loop "Wolfenstein 3D" screenwidth screenheight 'crt frame)))

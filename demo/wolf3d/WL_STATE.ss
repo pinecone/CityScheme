@@ -1546,11 +1546,32 @@
 (define control-input #f)
 (define demoplayback #f)
 (define demorecord #f)
+(define demo-session #f)
+(define demo-headless #f)
 (define demo-buffer #f)
 (define demo-pointer 0)
 (define demo-end 0)
 (define demo-lasttimecount 0)
 (define DEMOTICS 4)
+(define demo-deadline 0)
+
+(define (demo-wait)
+  (set! demo-deadline (+ demo-deadline (/ DEMOTICS TickBase)))
+  (unless demo-headless
+    (let wait ()
+      (when (< (time-monotonic) demo-deadline)
+        (IN_Yield)
+        (wait))))
+  (set! TimeCount (+ demo-lasttimecount DEMOTICS))
+  (set! demo-lasttimecount TimeCount)
+  (set! tics DEMOTICS))
+
+(define (demo-grow)
+  (when (> (+ demo-pointer 3) demo-end)
+    (let ((next (make-bytevector (* demo-end 2) 0)))
+      (bytevector-copy! next 0 demo-buffer 0 demo-pointer)
+      (set! demo-buffer next)
+      (set! demo-end (bytevector-length next)))))
 
 (define (demo-byte value)
   (if (> value 127) (- value 256) value))
@@ -1570,18 +1591,23 @@
     (set! controlx (* (demo-byte (ref demo-buffer (+ demo-pointer 1))) tics))
     (set! controly (* (demo-byte (ref demo-buffer (+ demo-pointer 2))) tics))
     (set! demo-pointer (+ demo-pointer 3))
-    (when (= demo-pointer demo-end)
+    (when (and (= demo-pointer demo-end) (not demo-session))
       (set! playstate ex_completed))))
 
 (define (demo-record-controls)
+  (if demo-session
+      (demo-grow)
+      (when (> (+ demo-pointer 3) demo-end)
+        (Quit "Demo buffer overflowed!")))
   (let ((x (truncate (/ controlx tics)))
         (y (truncate (/ controly tics))))
+    (when demo-session
+      (set! controlx (* x tics))
+      (set! controly (* y tics)))
     (setf! demo-buffer demo-pointer (demo-buttons))
     (setf! demo-buffer (+ demo-pointer 1) (bitwise-and x 255))
     (setf! demo-buffer (+ demo-pointer 2) (bitwise-and y 255))
-    (set! demo-pointer (+ demo-pointer 3))
-    (when (>= demo-pointer demo-end)
-      (Quit "Demo buffer overflowed!"))))
+    (set! demo-pointer (+ demo-pointer 3))))
 
 (define (PollKeyboardButtons)
   (let buttons ((button 0))
@@ -1670,13 +1696,16 @@
                     (truncate (/ (* (dos:get-mouse-motion-y) 20) (- 13 mouseadjustment))))))
 
 (define (wait-demo-tics)
-  (let wait ()
-    (when (< TimeCount (+ demo-lasttimecount DEMOTICS))
-      (when (IN_Yield)
-        (wait))))
-  (set! TimeCount (+ demo-lasttimecount DEMOTICS))
-  (set! demo-lasttimecount (+ demo-lasttimecount DEMOTICS))
-  (set! tics DEMOTICS))
+  (if demo-session
+      (demo-wait)
+      (begin
+        (let wait ()
+          (when (< TimeCount (+ demo-lasttimecount DEMOTICS))
+            (when (IN_Yield)
+              (wait))))
+        (set! TimeCount (+ demo-lasttimecount DEMOTICS))
+        (set! demo-lasttimecount (+ demo-lasttimecount DEMOTICS))
+        (set! tics DEMOTICS))))
 
 (define (PollControls)
   (set! controlx 0)
@@ -1713,7 +1742,7 @@
 
 ;; WL_PLAY.C:613-833.
 (define (CheckKeys)
-  (unless (or screenfaded demoplayback)
+  (unless (or screenfaded demoplayback demo-session)
     (when (and (ref Keyboard sc_M) (ref Keyboard sc_L) (ref Keyboard sc_I))
       (set! health 100)
       (set! ammo 99)

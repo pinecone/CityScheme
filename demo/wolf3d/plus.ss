@@ -1,8 +1,10 @@
 (define plus-enabled
-  (let scan ((index 0))
-    (if (= index (vector-length argv))
-        #f
-        (or (string=? (ref argv index) "--plus") (scan (+ index 1))))))
+  (if (eq? demo-action 'play)
+      (= (ref demo-data 5) 1)
+      (let scan ((index 0))
+        (if (= index (vector-length argv))
+            #f
+            (or (string=? (ref argv index) "--plus") (scan (+ index 1)))))))
 
 (define PLUS_LIGHT_RADIUS 6)
 (define PLUS_LIGHT_LEVELS 8)

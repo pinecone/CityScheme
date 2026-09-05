@@ -116,7 +116,7 @@
     (setf! curpal offset red)
     (setf! curpal (+ offset 1) green)
     (setf! curpal (+ offset 2) blue)
-    (dos:set-palette curpal)))
+    (unless demo-headless (dos:set-palette curpal))))
 
 
 (define (VL_GetColor color)
@@ -130,7 +130,7 @@
     (when (< index PALETTEBYTES)
       (setf! curpal index (ref palette index))
       (loop (+ index 1))))
-  (dos:set-palette curpal))
+  (unless demo-headless (dos:set-palette curpal)))
 
 (define (VL_GetPalette palette)
   (let loop ((index 0))
@@ -355,7 +355,7 @@
   (setf! curpal (* color 3) red)
   (setf! curpal (+ (* color 3) 1) green)
   (setf! curpal (+ (* color 3) 2) blue)
-  (dos:set-palette curpal))
+  (unless demo-headless (dos:set-palette curpal)))
 
 (define (VL_GetColor color)
   (list (ref curpal (* color 3))
