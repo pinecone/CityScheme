@@ -87,7 +87,7 @@
                 (when (< y limit)
                   (when (and (>= y 0) (< y viewheight))
                     (setf! framebuffer (+ (* (+ y viewtop) screenwidth) viewleft screenx)
-                           (plus-sprite-color (ref page (+ topofs texel)) level emission sourcex texel))
+                           (plus-sprite-color (ref page (+ topofs texel)) level emission))
                     (set! sprite-pixels (+ sprite-pixels 1)))
                   (fill (+ y 1) limit)))
               (texels (+ texel 1)))))
