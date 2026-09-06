@@ -1615,11 +1615,14 @@
       (buttons (+ button 1)))))
 
 (define (PollKeyboardMove)
-  (let ((step (* (if (ref buttonstate bt_run) 70 35) tics)))
+  (let* ((step (* (cond ((ref buttonstate bt_run) 70) (plus-enabled plus-walk-speed) (else 35)) tics))
+         (turn (if (and plus-enabled (not (ref buttonstate bt_strafe)))
+                   (* plus-turn-speed tics)
+                   step)))
     (when (ref Keyboard (ref dirscan 0)) (set! controly (- controly step)))
     (when (ref Keyboard (ref dirscan 2)) (set! controly (+ controly step)))
-    (when (ref Keyboard (ref dirscan 3)) (set! controlx (- controlx step)))
-    (when (ref Keyboard (ref dirscan 1)) (set! controlx (+ controlx step)))))
+    (when (ref Keyboard (ref dirscan 3)) (set! controlx (- controlx turn)))
+    (when (ref Keyboard (ref dirscan 1)) (set! controlx (+ controlx turn)))))
 
 (define (PollKeyboardControls)
   (PollKeyboardButtons)

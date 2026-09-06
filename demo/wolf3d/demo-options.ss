@@ -3,8 +3,7 @@
 (define demo-data #f)
 
 (define (demo-error message)
-  (display (string-append "demo: " message "\n"))
-  (exit 1))
+  (error (string-append "demo: " message)))
 
 (let scan ((index 0))
   (when (< index (vector-length argv))

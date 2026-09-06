@@ -6,6 +6,28 @@
             #f
             (or (string=? (ref argv index) "--plus") (scan (+ index 1)))))))
 
+(define plus-turn-speed 62.5)
+(define plus-walk-speed 52.5)
+
+(let scan ((index 0))
+  (when (< index (vector-length argv))
+    (let ((option (ref argv index)))
+      (if (or (string=? option "--turn-speed") (string=? option "--walk-speed"))
+          (begin
+            (unless plus-enabled
+              (error (string-append option " requires --plus")))
+            (when (eq? demo-action 'play)
+              (error (string-append option " cannot change recorded movement")))
+            (let ((speed (and (< (+ index 1) (vector-length argv))
+                              (string->number (ref argv (+ index 1))))))
+              (unless (and speed (> speed 0) (<= speed 100))
+                (error (string-append option " requires a number greater than 0 and at most 100")))
+              (if (string=? option "--turn-speed")
+                  (set! plus-turn-speed speed)
+                  (set! plus-walk-speed speed)))
+            (scan (+ index 2)))
+          (scan (+ index 1))))))
+
 (define PLUS_LIGHT_RADIUS 6)
 (define PLUS_LIGHT_LEVELS 8)
 (define PLUS_EMISSIVE_LUMA 48)
