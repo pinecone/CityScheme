@@ -1970,21 +1970,46 @@ JET_NOINLINE JET_PRESERVE_NONE static void op_call_slot_slow(VM_OP_PARAMS)
 template <int N, CallTail tail, CalleeKind kind>
 JET_PRESERVE_NONE static void op_call_slot_impl(VM_OP_PARAMS)
 {
-	if constexpr (CalleeKind::Stub == kind)
+	if constexpr (kind == CalleeKind::Stub)
 	{
 		JET_GC_CHECK();
 	}
-	OP_call_slot* op = reinterpret_cast<OP_call_slot*>(pc);
-	if (Slot* sl = unbox<Slot>(frame->closure->captures[op->upvalue_idx]);
-	    op->ic_slot != std::bit_cast<uint64_t>(sl) || op->ic_version != sl->version
-	    || (CalleeKind::Lambda == kind && op->ic_epoch != s.gc.epoch)) [[unlikely]]
+	OP_call_slot* op{reinterpret_cast<OP_call_slot*>(pc)};
+	if constexpr (kind == CalleeKind::Lambda)
 	{
-		JET_MUSTTAIL return op_call_slot_slow<N, tail>(VM_OP_ARGS);
+		if (op->ic_epoch != s.gc.epoch) [[unlikely]]
+		{
+			JET_MUSTTAIL return op_call_slot_slow<N, tail>(VM_OP_ARGS);
+		}
 	}
+
+	Slot* slot{unbox<Slot>(frame->closure->captures[op->upvalue_idx])};
+	if (op->ic_slot != std::bit_cast<uint64_t>(slot) || op->ic_version != slot->version)
+	{
+		if constexpr (kind == CalleeKind::Stub)
+		{
+			JET_MUSTTAIL return op_call_slot_slow<N, tail>(VM_OP_ARGS);
+		}
+
+		Atom current{slot->value};
+		if (!is_type<jet::Type::Procedure>(current)) [[unlikely]]
+		{
+			JET_MUSTTAIL return op_call_slot_slow<N, tail>(VM_OP_ARGS);
+		}
+		if (op->ic_code != std::bit_cast<uint64_t>(unbox<Lambda>(current)->code)) [[unlikely]]
+		{
+			JET_MUSTTAIL return op_call_slot_slow<N, tail>(VM_OP_ARGS);
+		}
+
+		op->ic_slot = std::bit_cast<uint64_t>(slot);
+		op->ic_version = slot->version;
+		op->ic_atom = current.bits;
+	}
+
 	pc += sizeof(*op);
 	callee = Atom::from_bits(op->ic_atom);
 	JET_CALL_WINDOW(op->w, op->nargs);
-	if constexpr (CalleeKind::Lambda == kind)
+	if constexpr (kind == CalleeKind::Lambda)
 	{
 		JET_MUSTTAIL return op_enter_lambda_fast<tail, OP_call_slot>(VM_OP_ARGS);
 	}
@@ -2033,12 +2058,20 @@ JET_NOINLINE JET_PRESERVE_NONE static void op_call_atom_slow(VM_OP_PARAMS)
 template <int N, CallTail tail, CalleeSource source, CalleeKind kind>
 JET_PRESERVE_NONE static void op_call_atom_impl(VM_OP_PARAMS)
 {
-	if constexpr (CalleeKind::Stub == kind)
+	if constexpr (kind == CalleeKind::Stub)
 	{
 		JET_GC_CHECK();
 	}
-	OP_call_atom* op = reinterpret_cast<OP_call_atom*>(pc);
-	Atom current{};
+	OP_call_atom* op{reinterpret_cast<OP_call_atom*>(pc)};
+	if constexpr (kind == CalleeKind::Lambda)
+	{
+		if (op->ic_epoch != s.gc.epoch) [[unlikely]]
+		{
+			JET_MUSTTAIL return op_call_atom_slow<N, tail, source>(VM_OP_ARGS);
+		}
+	}
+
+	Atom current;
 	if constexpr (source == CalleeSource::Local)
 	{
 		current = frame_regs[op->idx];
@@ -2047,15 +2080,29 @@ JET_PRESERVE_NONE static void op_call_atom_impl(VM_OP_PARAMS)
 	{
 		current = frame->closure->captures[op->idx];
 	}
-	if (op->ic_atom != current.bits
-	    || (CalleeKind::Lambda == kind && op->ic_epoch != s.gc.epoch)) [[unlikely]]
+
+	if (op->ic_atom != current.bits)
 	{
-		JET_MUSTTAIL return op_call_atom_slow<N, tail, source>(VM_OP_ARGS);
+		if constexpr (kind == CalleeKind::Stub)
+		{
+			JET_MUSTTAIL return op_call_atom_slow<N, tail, source>(VM_OP_ARGS);
+		}
+		if (!is_type<jet::Type::Procedure>(current)) [[unlikely]]
+		{
+			JET_MUSTTAIL return op_call_atom_slow<N, tail, source>(VM_OP_ARGS);
+		}
+		if (op->ic_code != std::bit_cast<uint64_t>(unbox<Lambda>(current)->code)) [[unlikely]]
+		{
+			JET_MUSTTAIL return op_call_atom_slow<N, tail, source>(VM_OP_ARGS);
+		}
+
+		op->ic_atom = current.bits;
 	}
+
 	pc += sizeof(*op);
 	callee = current;
 	JET_CALL_WINDOW(op->w, op->nargs);
-	if constexpr (CalleeKind::Lambda == kind)
+	if constexpr (kind == CalleeKind::Lambda)
 	{
 		JET_MUSTTAIL return op_enter_lambda_fast<tail, OP_call_atom>(VM_OP_ARGS);
 	}

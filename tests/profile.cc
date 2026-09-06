@@ -58,7 +58,7 @@ static Atom verify(VmState& state)
 		changed += site.misses.changed;
 		invalidated += site.misses.invalidated;
 	}
-	JET_DIE_UNLESS(&state, same_code != 0, "profile: same-code closures");
+	JET_DIE_UNLESS(&state, same_code == 0, "profile: same-code closure hits");
 	JET_DIE_UNLESS(&state, changed != 0, "profile: changed callee");
 	JET_DIE_UNLESS(&state, invalidated != 0, "profile: invalidated cache");
 	return box(true);

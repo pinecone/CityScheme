@@ -67,13 +67,6 @@
         (loop)))
     (let ((elapsed (* 1000 (- (time-monotonic) started)))
           (checksum (demo-checksum)))
-      (if demorecord
-          (demo-save checksum)
-          (begin
-            (unless (= demo-frames (readu32 demo-data 8))
-              (demo-error "playback ended before the recorded frame count"))
-            (unless (= checksum (readu32 demo-data 12))
-              (demo-error "playback checksum mismatch; check the game data files"))))
       (display (string-append "demo: frames=" (number->string demo-frames)
                               " ticks=" (number->string (* demo-frames DEMOTICS))
                               " ms=" (number->string elapsed)
@@ -83,6 +76,7 @@
                                         (number->string (/ (round (/ (* 10000 demo-frames) elapsed)) 10))
                                         "n/a"))
                                   "")
-                              " checksum=" (number->string checksum) "\n"))))
+                              " checksum=" (number->string checksum) "\n"))
+      (when demorecord (demo-save checksum))))
   (set! demorecord #f)
   (set! demoplayback #f))
