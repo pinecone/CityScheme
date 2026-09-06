@@ -15,6 +15,7 @@
 (define PLUS_AO_RANGE 1)
 (define PLUS_AO_DEPTH 48)
 
+(define plus-boundaries (make-vector (vector-length wallheight) 0))
 (define plus-shades (make-vector 20 0))
 (define plus-emissive (make-bytevector 256 0))
 (define plus-lightmap (make-bytevector (* MAPSIZE MAPSIZE) 0))
@@ -254,6 +255,11 @@
     (let ((halfh (arithmetic-shift viewheight -1))
           (ceilcolor (ceiling-color))
           (centercol (arithmetic-shift viewwidth -1)))
+      (let columns ((x 0))
+        (when (< x viewwidth)
+          (setf! plus-boundaries x (arithmetic-shift (scale-rows (ref wallheight x)) -1))
+          (columns (+ x 1))))
+
       (let rows ((h 1))
         (when (< h halfh)
           (let* ((level 0)
@@ -267,7 +273,7 @@
             (when (and (>= top 0) (< bottom viewheight))
               (let columns ((x 0))
                 (when (< x viewwidth)
-                  (let ((distance (- h (arithmetic-shift (scale-rows (ref wallheight x)) -1))))
+                  (let ((distance (- h (ref plus-boundaries x))))
                     (when (>= distance 0)
                       (let* ((prestep (- centercol x))
                              (xf (- startx (arithmetic-shift (* xstep prestep) -2)))
