@@ -1146,11 +1146,25 @@ static Atom write_atom(VmState& s, Atom* first, Atom* last)
 	return put_buffer(s, buf, "write", first, last);
 }
 
+static Atom error(VmState& state, Atom* first, Atom* last)
+{
+	std::string message{*slow_unbox<String>(state, *first)};
+	for (Atom* irritant{first + 1}; irritant != last; ++irritant)
+	{
+		message += ' ';
+		write_to(state, *irritant, message);
+	}
+
+	std::fwrite(message.data(), 1, message.size(), stderr);
+	JET_DIE(&state, "%s", "");
+}
+
 void init_display_primitives(VmState& s)
 {
 	Env& e = s.env;
 	e.bind("display", make_prim<display>(s, at_least(1)));
 	e.bind("write", make_prim<write_atom>(s, at_least(1)));
+	e.bind("error", make_prim<error>(s, at_least(1)));
 }
 
 static Atom string_append(VmState& s, Atom* first, Atom* last)

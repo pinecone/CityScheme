@@ -116,6 +116,7 @@
 (define displayn (lambda args (apply display args) (apply newline (cdr args))))
 (define newline (lambda ports (apply display (cons "\n" ports))))
 
+(define error (%prim "error"))
 (define exit (%prim "exit"))
 (define argv (%prim "argv"))
 
