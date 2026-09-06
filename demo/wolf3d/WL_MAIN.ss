@@ -274,18 +274,16 @@
 
 (define Quit
   (lambda errors
-    (let ((error (if (pair? errors) (car errors) "")))
+    (let ((message (if (pair? errors) (car errors) "")))
       (ClearMemory)
-      (if (string=? error "")
+      (if (string=? message "")
           (begin
             (WriteConfig)
             (ShutdownId)
             (exit 0))
           (begin
             (ShutdownId)
-            (display error)
-            (newline)
-            (exit 1))))))
+            (error message))))))
 
 ;;; WL_MAIN.C:304-536 — save and load
 
