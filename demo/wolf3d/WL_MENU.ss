@@ -1348,14 +1348,18 @@
            (let panel ()
              (let ((which (HandleMenu MainItems main-active main-text #f)))
                (cond ((< which 0)
-                      (CP_Quit)
-                      (DrawMainMenu)
-                      (MenuFadeIn)
-                      (panel))
+                      (if ingame
+                          (set! StartGame #t)
+                          (begin
+                            (CP_Quit)
+                            (DrawMainMenu)
+                            (MenuFadeIn)
+                            (panel))))
                      (else
                       (let ((routine (ref main-routine which)))
                         (when routine
-                          (MenuFadeOut)
+                          (unless (eq? routine 'quit)
+                            (MenuFadeOut))
                           (run-menu-routine routine))
                         (unless StartGame
                           (DrawMainMenu)

@@ -71,17 +71,18 @@
 (define game #f)
 
 (define (frame)
-  (let ((frame-start (time-monotonic)))
-    (IN_PollKeyboard)
-    (unless demo-session
-      (update-clock)
-      (SD_Service))
-    (coro/next game #f)
-    ;; The host presents the current visible linear RAM image.  The explicit
-    ;; display page remains for reference copies, but direct reference writes
-    ;; (including FizzleFade's per-VBL steps) must be visible immediately.
-    (dos:display-framebuffer framebuffer)
-    (update-title frame-start)))
+  (unless quitting
+    (let ((frame-start (time-monotonic)))
+      (IN_PollKeyboard)
+      (unless demo-session
+        (update-clock)
+        (SD_Service))
+      (coro/next game #f)
+      ;; The host presents the current visible linear RAM image.  The explicit
+      ;; display page remains for reference copies, but direct reference writes
+      ;; (including FizzleFade's per-VBL steps) must be visible immediately.
+      (dos:display-framebuffer framebuffer)
+      (update-title frame-start))))
 
 (if demo-headless
     (run-demo)

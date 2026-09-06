@@ -272,6 +272,8 @@
   (CA_Shutdown)
   (MM_Shutdown))
 
+(define quitting #f)
+
 (define Quit
   (lambda errors
     (let ((message (if (pair? errors) (car errors) "")))
@@ -280,7 +282,12 @@
           (begin
             (WriteConfig)
             (ShutdownId)
-            (exit 0))
+            (if in-yield
+                (begin
+                  (set! quitting #t)
+                  (dos:request-quit)
+                  (IN_Yield))
+                (exit 0)))
           (begin
             (ShutdownId)
             (error message))))))
