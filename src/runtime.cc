@@ -17,6 +17,7 @@
 #include <chrono>
 #include <cstdio>
 #include <iomanip>
+#include <iterator>
 #include <optional>
 #include <random>
 #include <unordered_set>
@@ -105,8 +106,8 @@ static Atom append_prim(VmState& s, Atom* first, Atom* last)
 			slot = &unbox<Cons>(cell)->cdr;
 			x = src->cdr;
 		}
-		JET_DIE_UNLESS(&s, is_type<jet::Type::EmptyList>(x), "append expects a list, given %s",
-		               type_name(x.type()).data());
+		JET_DIE_UNLESS(&s, is_type<jet::Type::EmptyList>(x), "append expects a list, given {}",
+		               type_name(x.type()));
 	}
 	if (first != last)
 	{
@@ -175,7 +176,7 @@ struct jet_min
 
 static int32_t to_int32(VmState& s, double x)
 {
-	JET_DIE_UNLESS(&s, std::isfinite(x), "bitwise op requires a finite number, given %g", x);
+	JET_DIE_UNLESS(&s, std::isfinite(x), "bitwise op requires a finite number, given {}", x);
 	return static_cast<int32_t>(static_cast<int64_t>(x));
 }
 
@@ -236,13 +237,13 @@ static bool jet_is_negative(VmState&, double x)
 
 static bool jet_is_even(VmState& s, double x)
 {
-	JET_DIE_UNLESS(&s, is_integer(x), "even? expects an integer, given %g", x);
+	JET_DIE_UNLESS(&s, is_integer(x), "even? expects an integer, given {}", x);
 	return std::fmod(x, 2.0) == 0.0;
 }
 
 static bool jet_is_odd(VmState& s, double x)
 {
-	JET_DIE_UNLESS(&s, is_integer(x), "odd? expects an integer, given %g", x);
+	JET_DIE_UNLESS(&s, is_integer(x), "odd? expects an integer, given {}", x);
 	return std::fmod(x, 2.0) != 0.0;
 }
 
@@ -393,19 +394,19 @@ Atom vector_ctor(VmState& s, Atom* first, Atom* last)
 
 Atom make_vector(VmState& s, Atom n, Atom f)
 {
-	JET_DIE_UNLESS(&s, is_nonnegative_integer(s, n), "make-vector expects non-negative integer, given %g",
+	JET_DIE_UNLESS(&s, is_nonnegative_integer(s, n), "make-vector expects non-negative integer, given {}",
 	               unbox<Number>(n));
 	return s.gc.alloc_tagged<Vec>(s, unbox<Number>(n), f);
 }
 
 Atom vector_ref(VmState& s, Atom v, Atom idx)
 {
-	JET_DIE_UNLESS(&s, is_nonnegative_integer(s, idx), "vector-ref expects non-negative integer, given %g",
+	JET_DIE_UNLESS(&s, is_nonnegative_integer(s, idx), "vector-ref expects non-negative integer, given {}",
 	               unbox<Number>(idx));
 
 	size_t index = unbox<Number>(idx);
 	Vec& mv = *slow_unbox<Vec>(s, v);
-	JET_DIE_UNLESS(&s, index < mv.size(), "vector-ref index %zu out of bounds", index);
+	JET_DIE_UNLESS(&s, index < mv.size(), "vector-ref index {} out of bounds", index);
 	return mv[index];
 }
 
@@ -416,11 +417,11 @@ Atom vector_length(VmState& s, Atom v)
 
 static Atom vector_set(VmState& s, Atom v, Atom idx, Atom val)
 {
-	JET_DIE_UNLESS(&s, is_nonnegative_integer(s, idx), "vector-set! expects non-negative integer, given %g",
+	JET_DIE_UNLESS(&s, is_nonnegative_integer(s, idx), "vector-set! expects non-negative integer, given {}",
 	               unbox<Number>(idx));
 	size_t index = unbox<Number>(idx);
 	Vec& mv = *slow_unbox<Vec>(s, v);
-	JET_DIE_UNLESS(&s, index < mv.size(), "vector-set! index %zu out of bounds", index);
+	JET_DIE_UNLESS(&s, index < mv.size(), "vector-set! index {} out of bounds", index);
 	mv[index] = val;
 	return val;
 }
@@ -463,7 +464,7 @@ JET_PRESERVE_NONE static void private_cursor_constructor(VM_OP_PARAMS)
 {
 	StructType* type = unbox<StructType>(callee);
 	const std::string& name = *unbox<Symbol>(type->name());
-	JET_DIE(&s, "cursor type '%s' cannot be constructed directly", name.c_str());
+	JET_DIE(&s, "cursor type '{}' cannot be constructed directly", name);
 }
 
 static bool equal_vector_cursor(EqualContext&, Struct* first, Struct* second, EqualRecur)
@@ -555,29 +556,29 @@ void init_vecs(VmState& s)
 
 static void die_unless_byte(VmState& s, Atom b)
 {
-	JET_DIE_UNLESS(&s, is_byte(s, b), "bytevector: byte must be exact integer in [0,255], given %g",
+	JET_DIE_UNLESS(&s, is_byte(s, b), "bytevector: byte must be exact integer in [0,255], given {}",
 	               unbox<Number>(b));
 }
 
 Atom bytevector_u8_ref(VmState& s, Atom bv, Atom k)
 {
 	JET_DIE_UNLESS(&s, is_nonnegative_integer(s, k),
-	               "bytevector-u8-ref expects non-negative integer, given %g",
+	               "bytevector-u8-ref expects non-negative integer, given {}",
 	               unbox<Number>(k));
 	size_t index = unbox<Number>(k);
 	ByteVector& mbv = *slow_unbox<ByteVector>(s, bv);
-	JET_DIE_UNLESS(&s, index < mbv.size(), "bytevector-u8-ref index %zu out of bounds", index);
+	JET_DIE_UNLESS(&s, index < mbv.size(), "bytevector-u8-ref index {} out of bounds", index);
 	return box(Number::trusted(mbv[index]));
 }
 
 static Atom bytevector_u8_set(VmState& s, Atom bv, Atom k, Atom b)
 {
 	JET_DIE_UNLESS(&s, is_nonnegative_integer(s, k),
-	               "bytevector-u8-set! expects non-negative integer, given %g",
+	               "bytevector-u8-set! expects non-negative integer, given {}",
 	               unbox<Number>(k));
 	size_t index = unbox<Number>(k);
 	ByteVector& mbv = *slow_unbox<ByteVector>(s, bv);
-	JET_DIE_UNLESS(&s, index < mbv.size(), "bytevector-u8-set! index %zu out of bounds", index);
+	JET_DIE_UNLESS(&s, index < mbv.size(), "bytevector-u8-set! index {} out of bounds", index);
 	die_unless_byte(s, b);
 	mbv[index] = static_cast<uint8_t>(unbox<Number>(b));
 	return b;
@@ -591,7 +592,7 @@ static Atom bytevector_length(VmState& s, Atom bv)
 static Atom make_bytevector(VmState& s, Atom k, Atom fill)
 {
 	JET_DIE_UNLESS(&s, is_nonnegative_integer(s, k),
-	               "make-bytevector expects non-negative integer, given %g",
+	               "make-bytevector expects non-negative integer, given {}",
 	               unbox<Number>(k));
 	die_unless_byte(s, fill);
 	return s.gc.alloc_tagged<ByteVector>(s, unbox<Number>(k), static_cast<uint8_t>(unbox<Number>(fill)));
@@ -612,32 +613,32 @@ static Atom bytevector_ctor(VmState& s, Atom* first, Atom* last)
 static Atom bytevector_copy(VmState& s, Atom bv, Atom start, Atom end)
 {
 	JET_DIE_UNLESS(&s, is_nonnegative_integer(s, start),
-	               "bytevector-copy expects non-negative integer start, given %g", unbox<Number>(start));
+	               "bytevector-copy expects non-negative integer start, given {}", unbox<Number>(start));
 	JET_DIE_UNLESS(&s, is_nonnegative_integer(s, end),
-	               "bytevector-copy expects non-negative integer end, given %g", unbox<Number>(end));
+	               "bytevector-copy expects non-negative integer end, given {}", unbox<Number>(end));
 	ByteVector& src = *slow_unbox<ByteVector>(s, bv);
 	size_t start_index = unbox<Number>(start);
 	size_t end_index = unbox<Number>(end);
 	JET_DIE_UNLESS(&s, start_index <= end_index && end_index <= src.size(),
-	               "bytevector-copy range %zu..%zu out of bounds", start_index, end_index);
+	               "bytevector-copy range {}..{} out of bounds", start_index, end_index);
 	return s.gc.alloc_tagged<ByteVector>(s, src.begin() + start_index, src.begin() + end_index);
 }
 
 static Atom bytevector_copy_bang(VmState& s, Atom to, Atom at, Atom from, Atom start, Atom end)
 {
 	JET_DIE_UNLESS(&s, is_nonnegative_integer(s, at),
-	               "bytevector-copy! expects non-negative integer at, given %g", unbox<Number>(at));
+	               "bytevector-copy! expects non-negative integer at, given {}", unbox<Number>(at));
 	JET_DIE_UNLESS(&s, is_nonnegative_integer(s, start),
-	               "bytevector-copy! expects non-negative integer start, given %g", unbox<Number>(start));
+	               "bytevector-copy! expects non-negative integer start, given {}", unbox<Number>(start));
 	JET_DIE_UNLESS(&s, is_nonnegative_integer(s, end),
-	               "bytevector-copy! expects non-negative integer end, given %g", unbox<Number>(end));
+	               "bytevector-copy! expects non-negative integer end, given {}", unbox<Number>(end));
 	ByteVector& dst = *slow_unbox<ByteVector>(s, to);
 	ByteVector& src = *slow_unbox<ByteVector>(s, from);
 	size_t at_index = unbox<Number>(at);
 	size_t start_index = unbox<Number>(start);
 	size_t end_index = unbox<Number>(end);
 	JET_DIE_UNLESS(&s, start_index <= end_index && end_index <= src.size(),
-	               "bytevector-copy! source range %zu..%zu out of bounds", start_index, end_index);
+	               "bytevector-copy! source range {}..{} out of bounds", start_index, end_index);
 	JET_DIE_UNLESS(&s, at_index + (end_index - start_index) <= dst.size(),
 	               "bytevector-copy! destination range out of bounds");
 	if (to.as_ptr() == from.as_ptr() && at_index > start_index)
@@ -706,7 +707,7 @@ bool is_eqv(VmState& s, Atom obj1, Atom obj2)
 			return compare_objects<Prim>(obj1, obj2);
 		case jet::Type::Unknown:
 		case jet::Type::TypeMax:
-			JET_DIE(&s, "is_eqv: unexpected type %d", static_cast<int>(obj1.type()));
+			JET_DIE(&s, "is_eqv: unexpected type {}", obj1.type());
 		default:
 			return false;
 	}
@@ -959,7 +960,7 @@ Atom display_to(VmState& s, Atom a, std::string& out)
 			{
 				r = std::to_chars(buf, buf + sizeof(buf), n);
 			}
-			JET_DIE_UNLESS(&s, r.ec == std::errc{}, "number formatting overflowed its %zu-byte buffer",
+			JET_DIE_UNLESS(&s, r.ec == std::errc{}, "number formatting overflowed its {}-byte buffer",
 			               sizeof(buf));
 			out.append(buf, r.ptr - buf);
 		}
@@ -1002,9 +1003,7 @@ Atom display_to(VmState& s, Atom a, std::string& out)
 			StructType* t = unbox<StructType>(a);
 			out += "#<struct-type ";
 			out += symbol_to_string(unbox<Symbol>(t->name()));
-			char buf[24];
-			std::snprintf(buf, sizeof(buf), " @%p", static_cast<void*>(t));
-			out += buf;
+			std::format_to(std::back_inserter(out), " @{}", static_cast<void*>(t));
 			out += '>';
 			break;
 		}
@@ -1117,12 +1116,12 @@ Atom write_to(VmState& s, Atom a, std::string& out)
 static Atom put_buffer(VmState& s, std::string& buf, const char* who, Atom* first, Atom* last)
 {
 	size_t n_args = static_cast<size_t>(last - first);
-	JET_DIE_UNLESS(&s, n_args <= 2, "%s expects at most 2 arguments, given %zu", who, n_args);
+	JET_DIE_UNLESS(&s, n_args <= 2, "{} expects at most 2 arguments, given {}", who, n_args);
 
 	if (n_args == 2)
 	{
 		OPort* op = static_cast<OPort*>(slow_unbox<Port>(s, first[1]));
-		JET_DIE_UNLESS(&s, op->is_output(), "%s: not an output port", who);
+		JET_DIE_UNLESS(&s, op->is_output(), "{}: not an output port", who);
 		op->write_bytes(buf.data(), buf.size());
 		return Atom{};
 	}
@@ -1156,7 +1155,7 @@ static Atom error(VmState& state, Atom* first, Atom* last)
 	}
 
 	std::fwrite(message.data(), 1, message.size(), stderr);
-	JET_DIE(&state, "%s", "");
+	JET_DIE(&state, "");
 }
 
 void init_display_primitives(VmState& s)
@@ -1179,11 +1178,11 @@ static Atom string_append(VmState& s, Atom* first, Atom* last)
 
 static size_t string_index(VmState& s, Atom str, Atom k, const char* op)
 {
-	JET_DIE_UNLESS(&s, is_nonnegative_integer(s, k), "%s expects non-negative integer index, given %g", op,
-	               unbox<Number>(k));
+	JET_DIE_UNLESS(&s, is_nonnegative_integer(s, k), "{} expects non-negative integer index, given {}",
+	               op, unbox<Number>(k));
 	size_t i = unbox<Number>(k);
 	String& text = *slow_unbox<String>(s, str);
-	JET_DIE_UNLESS(&s, i < text.size(), "%s index %zu out of bounds", op, i);
+	JET_DIE_UNLESS(&s, i < text.size(), "{} index {} out of bounds", op, i);
 	return i;
 }
 
@@ -1223,7 +1222,7 @@ static Atom substring(VmState& s, Atom* first, Atom* last)
 	size_t n = str.size();
 	size_t start = last - first >= 2 ? static_cast<size_t>(slow_unbox<Number>(s, first[1])) : 0;
 	size_t end = last - first >= 3 ? static_cast<size_t>(slow_unbox<Number>(s, first[2])) : n;
-	JET_DIE_UNLESS(&s, start <= end && end <= n, "substring: bad range [%zu, %zu) for length %zu", start, end,
+	JET_DIE_UNLESS(&s, start <= end && end <= n, "substring: bad range [{}, {}) for length {}", start, end,
 	               n);
 	return s.gc.alloc_tagged<String>(s, str.substr(start, end - start));
 }
@@ -1234,7 +1233,7 @@ static Atom string_copy(VmState& s, Atom* first, Atom* last)
 	size_t n = str.size();
 	size_t start = last - first >= 2 ? static_cast<size_t>(slow_unbox<Number>(s, first[1])) : 0;
 	size_t end = last - first >= 3 ? static_cast<size_t>(slow_unbox<Number>(s, first[2])) : n;
-	JET_DIE_UNLESS(&s, start <= end && end <= n, "string-copy: bad range [%zu, %zu) for length %zu", start,
+	JET_DIE_UNLESS(&s, start <= end && end <= n, "string-copy: bad range [{}, {}) for length {}", start,
 	               end, n);
 	return s.gc.alloc_tagged<String>(s, str.substr(start, end - start));
 }
@@ -1274,7 +1273,7 @@ static Atom string_to_number(VmState& s, Atom* first, Atom* last)
 		return box(Number::from_ieee(v));
 	}
 	JET_DIE_UNLESS(&s, radix == 2 || radix == 8 || radix == 16,
-	               "string->number: radix must be 2, 8, 10, or 16, got %d", radix);
+	               "string->number: radix must be 2, 8, 10, or 16, got {}", radix);
 	const char* p = str.c_str();
 	char* end = nullptr;
 	long long v = std::strtoll(p, &end, radix);
@@ -1309,8 +1308,8 @@ static Atom number_to_string(VmState& s, Atom* first, Atom* last)
 		return s.gc.alloc_tagged<String>(s, std::move(os));
 	}
 	JET_DIE_UNLESS(&s, radix == 2 || radix == 8 || radix == 16,
-	               "number->string: radix must be 2, 8, 10, or 16, got %d", radix);
-	JET_DIE_UNLESS(&s, is_integer(n), "number->string: non-decimal radix needs integer, got %g", n);
+	               "number->string: radix must be 2, 8, 10, or 16, got {}", radix);
+	JET_DIE_UNLESS(&s, is_integer(n), "number->string: non-decimal radix needs integer, got {}", n);
 	char buf[72];
 	std::to_chars_result r = std::to_chars(buf, buf + sizeof(buf), static_cast<long long>(n), radix);
 	JET_DIE_UNLESS(&s, r.ec == std::errc{}, "number->string: conversion failed");
@@ -1345,7 +1344,7 @@ static Number char_to_integer(VmState& s, Atom ch)
 static Atom integer_to_char(VmState& s, Atom n)
 {
 	double v = slow_unbox<Number>(s, n);
-	JET_DIE_UNLESS(&s, is_byte(s, n), "integer->char: out of range %g", v);
+	JET_DIE_UNLESS(&s, is_byte(s, n), "integer->char: out of range {}", v);
 	return box(static_cast<Character>(static_cast<uint8_t>(v)));
 }
 
@@ -1586,8 +1585,7 @@ OPortFile::OPortFile(VmState& s, std::string_view name) : f_{nullptr}
 {
 	std::string path{name};
 	f_ = fopen(path.c_str(), "wb");
-	JET_DIE_UNLESS(&s, f_, "cannot open file `%.*s' for writing", static_cast<int>(name.size()),
-	               name.data());
+	JET_DIE_UNLESS(&s, f_, "cannot open file `{}' for writing", name);
 }
 
 OPortFile::~OPortFile()
@@ -1626,14 +1624,13 @@ static Atom open_input_file_maybe(VmState& s, Atom name)
 		return box(false);
 	}
 
-	JET_DIE(&s, "cannot open file `%s' for reading: %s", path.c_str(), strerror(errno));
+	JET_DIE(&s, "cannot open file `{}' for reading: {}", path, strerror(errno));
 }
 
 static Atom open_input_file(VmState& s, Atom name)
 {
 	Atom port = open_input_file_maybe(s, name);
-	JET_DIE_UNLESS(&s, is_true(port), "cannot open file `%s' for reading",
-	               slow_unbox<String>(s, name)->c_str());
+	JET_DIE_UNLESS(&s, is_true(port), "cannot open file `{}' for reading", *slow_unbox<String>(s, name));
 	return port;
 }
 
@@ -1677,7 +1674,7 @@ static Struct* construct_tuple(VmState& s, StructType* type, Atom* first, Atom* 
 {
 	const std::string& type_name = symbol_to_string(unbox<Symbol>(type->name()));
 	const std::string& field_name = symbol_to_string(field);
-	JET_DIE(&s, "struct '%s': no field named '%s'", type_name.c_str(), field_name.c_str());
+	JET_DIE(&s, "struct '{}': no field named '{}'", type_name, field_name);
 }
 
 static uint64_t resolve_scheme_field(VmState& s, Struct* instance, Atom key)
@@ -2006,7 +2003,7 @@ static Atom make_cursor(VmState& s, Atom target)
 	if (!shape || !shape->iter) [[unlikely]]
 	{
 		std::string_view name = type_name(target.type());
-		JET_DIE(&s, "%%iter: cannot iterate <%.*s>", static_cast<int>(name.size()), name.data());
+		JET_DIE(&s, "%iter: cannot iterate <{}>", name);
 	}
 	return Atom::make_tagged(jet_tag::struct_, shape->iter(s, target));
 }
@@ -2216,10 +2213,9 @@ static bool key_hash_try(Atom key, uint64_t& out, Atom& culprit)
 		{
 			JET_DIE(&s, "hash key tuple holds a value of a type that cannot be a key");
 		}
-		JET_DIE(&s, "value of type %s cannot be a hash key",
-		        symbol_to_string(unbox<Symbol>(type->name())).c_str());
+		JET_DIE(&s, "value of type {} cannot be a hash key", symbol_to_string(unbox<Symbol>(type->name())));
 	}
-	JET_DIE(&s, "value of type %s cannot be a hash key", type_name(culprit.type()).data());
+	JET_DIE(&s, "value of type {} cannot be a hash key", type_name(culprit.type()));
 }
 
 static TableKey make_key(VmState& s, Atom key)
@@ -2519,7 +2515,7 @@ static Struct* construct_hashset(VmState& s, StructType* type, Atom* first, Atom
 static Struct* construct_hashmap(VmState& s, StructType* type, Atom* first, Atom* last)
 {
 	size_t count = static_cast<size_t>(last - first);
-	JET_DIE_WHEN(&s, count % 2 != 0, "hashmap: expected an even number of arguments, given %zu", count);
+	JET_DIE_WHEN(&s, count % 2 != 0, "hashmap: expected an even number of arguments, given {}", count);
 	HashMap* map = HashMap::alloc(s, type);
 	for (Atom* it = first; it != last; it += 2)
 	{
@@ -2642,7 +2638,7 @@ Atom construct_struct(VmState& s, StructType* type, Atom* first, Atom* last)
 		default:
 		{
 			Symbol name = unbox<Symbol>(type->name());
-			JET_DIE(&s, "struct type '%s' has no direct constructor", name->c_str());
+			JET_DIE(&s, "struct type '{}' has no direct constructor", *name);
 		}
 	}
 	return Atom::make_tagged(jet_tag::struct_, instance);
@@ -2698,7 +2694,7 @@ static Atom prim_check(VmState& s, Atom* first, Atom*)
 		String& file = *unbox<String>(first[1]);
 		double line = unbox<Number>(first[2]);
 		double col = unbox<Number>(first[3]);
-		JET_DIE(&s, "FAIL %s:%g:%g", file.c_str(), line, col);
+		JET_DIE(&s, "FAIL {}:{}:{}", file, line, col);
 	}
 	return Atom{};
 }

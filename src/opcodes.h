@@ -4,8 +4,10 @@
 #ifndef opcodes_h
 #define opcodes_h
 
+#include "error.h"
 #include <cstddef>
 #include <cstdint>
+#include <string_view>
 
 struct Struct;
 
@@ -92,6 +94,21 @@ enum class Opcode : uint8_t
 #define X(name, disp, ...) name,
 	JET_OPCODES(X)
 #undef X
+};
+
+template <>
+struct std::formatter<Opcode> : std::formatter<std::string_view>
+{
+	std::format_context::iterator format(Opcode opcode, std::format_context& context) const
+	{
+		switch (opcode)
+		{
+#define X(name, disp, ...) case Opcode::name: return std::formatter<std::string_view>::format(#name, context);
+		JET_OPCODES(X)
+#undef X
+		}
+		JET_DIE(nullptr, "invalid Opcode {}", static_cast<unsigned>(opcode));
+	}
 };
 
 #define X(name, disp, ...) +1

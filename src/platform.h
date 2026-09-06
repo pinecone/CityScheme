@@ -4,6 +4,11 @@
 #ifndef platform_h
 #define platform_h
 
+#include <cstdio>
+#include <format>
+#include <string>
+#include <utility>
+
 #if __has_cpp_attribute(clang::preserve_none)
 #define JET_PRESERVE_NONE [[clang::preserve_none]]
 #else
@@ -35,5 +40,13 @@
 #else
 #define JET_MUSTTAIL
 #endif
+
+// Bytecode operands can be unaligned, so arguments are copied before formatting.
+template <typename... Args>
+JET_NOINLINE void print(FILE* out, std::format_string<Args...> format, Args... args)
+{
+	std::string text = std::format(format, std::move(args)...);
+	std::fwrite(text.data(), 1, text.size(), out);
+}
 
 #endif

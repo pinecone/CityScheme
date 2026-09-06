@@ -18,7 +18,8 @@ fail=0
 failed_names=
 for file in *.ss $JET_MODULE_TESTS
 do
-    name=${file%%.*}
+    name=${file#../}
+    name=${name%.ss}
     printf "   $name... "
 
     expected=$("$JET" run $file 2>/dev/null)

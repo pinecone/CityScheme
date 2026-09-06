@@ -146,7 +146,7 @@ int main(int argc, char* argv[])
 	bool want_disasm = (cmd == "disasm");
 	if (!want_compile && !want_exec)
 	{
-		fprintf(stderr, "error: unknown command '%s'\n", cmd.c_str());
+		print(stderr, "error: unknown command '{}'\n", cmd);
 		usage(stderr);
 		return 1;
 	}
@@ -182,7 +182,7 @@ int main(int argc, char* argv[])
 #ifdef JET_TRACE
 			g_trace_enabled = true;
 #else
-			fprintf(stderr, "warning: --trace is only available in debug builds (build/jet-debug)\n");
+			print(stderr, "warning: --trace is only available in debug builds (build/jet-debug)\n");
 #endif
 			continue;
 		}
@@ -218,15 +218,14 @@ int main(int argc, char* argv[])
 		}
 		else
 		{
-			JET_DIE_UNLESS(nullptr, slurp_text(input_path, source), "error: cannot read '%s'",
-			               input_path.c_str());
+			JET_DIE_UNLESS(nullptr, slurp_text(input_path, source), "error: cannot read '{}'", input_path);
 			filename = input_path != "-" ? input_path : "<stdin>";
 		}
 		bc = compile_source(std::move(source), std::move(filename), prelude_path, built_in_prelude, flags);
 	}
 	else
 	{
-		JET_DIE_UNLESS(nullptr, slurp_bytes(input_path, bc), "error: cannot read '%s'", input_path.c_str());
+		JET_DIE_UNLESS(nullptr, slurp_bytes(input_path, bc), "error: cannot read '{}'", input_path);
 	}
 
 	CodeImage image{bc.data(), bc.size()};

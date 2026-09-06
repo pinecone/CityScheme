@@ -845,12 +845,12 @@ inline void check_arity(VmState& s, Arity a, size_t actual)
 	if (Arity::Exactly == a.how)
 	{
 		JET_DIE_UNLESS(&s, actual == a.expected,
-		               "procedure expects exactly %zu argument(s), given %zu", a.expected, actual);
+		               "procedure expects exactly {} argument(s), given {}", a.expected, actual);
 	}
 	else if (Arity::AtLeast == a.how)
 	{
 		JET_DIE_UNLESS(&s, actual >= a.expected,
-		               "procedure expects at least %zu argument(s), given %zu", a.expected, actual);
+		               "procedure expects at least {} argument(s), given {}", a.expected, actual);
 	}
 }
 
@@ -1009,14 +1009,14 @@ template <FieldAccess access>
 	const char* op = access == FieldAccess::Store ? "setf!" : "ref";
 	if (!is_type<jet::Type::Number>(key))
 	{
-		JET_DIE(&s, "%s: expected a non-negative integer index", op);
+		JET_DIE(&s, "{}: expected a non-negative integer index", op);
 	}
 	double n = unbox<Number>(key);
 	if (!is_integer(n) || n < 0)
 	{
-		JET_DIE(&s, "%s: expected a non-negative integer index", op);
+		JET_DIE(&s, "{}: expected a non-negative integer index", op);
 	}
-	JET_DIE(&s, "%s: index out of bounds", op);
+	JET_DIE(&s, "{}: index out of bounds", op);
 }
 
 template <FieldKeySource key_source>
@@ -1202,7 +1202,7 @@ JET_ALWAYS_INLINE bool field_receiver_matches(Atom object, uint64_t dispatch_key
 template <FieldAccess access>
 JET_NOINLINE JET_PRESERVE_NONE void die_field_receiver(VM_OP_PARAMS)
 {
-	JET_DIE(&s, "%s: unsupported receiver type", access == FieldAccess::Store ? "setf!" : "ref");
+	JET_DIE(&s, "{}: unsupported receiver type", access == FieldAccess::Store ? "setf!" : "ref");
 }
 
 template <typename Access, FieldMiss miss, FieldKeySource key_source>

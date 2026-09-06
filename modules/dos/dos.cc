@@ -312,7 +312,7 @@ void main() {
 			return VOICE_PC;
 		}
 
-		JET_DIE(&s, "sound channel: unknown channel '%s', expected 'digi or 'pc", name.c_str());
+		JET_DIE(&s, "sound channel: unknown channel '{}', expected 'digi or 'pc", name);
 	}
 
 	sapp_keycode key_code(VmState& s, Atom key)
@@ -335,7 +335,7 @@ void main() {
 			}
 		}
 
-		JET_DIE(&s, "key-down?: unknown key '%s'", name.c_str());
+		JET_DIE(&s, "key-down?: unknown key '{}'", name);
 	}
 
 	void init_cb()
@@ -485,15 +485,14 @@ static Atom frame_loop(VmState& s, Atom title, Atom width, Atom height, Atom emu
 	}
 	else
 	{
-		JET_DIE(&s, "frame-loop: unknown screen emulation '%s', expected 'none' or 'crt'",
-		        emulation_name.c_str());
+		JET_DIE(&s, "frame-loop: unknown screen emulation '{}', expected 'none' or 'crt'", emulation_name);
 	}
 
 	video.vm = &s;
 	video.frame_proc = frame;
 	video.width = static_cast<int>(slow_unbox<Number>(s, width));
 	video.height = static_cast<int>(slow_unbox<Number>(s, height));
-	JET_DIE_UNLESS(&s, video.width > 0 && video.height > 0, "frame-loop: window is %dx%d", video.width,
+	JET_DIE_UNLESS(&s, video.width > 0 && video.height > 0, "frame-loop: window is {}x{}", video.width,
 	               video.height);
 
 	s.stack_top = s.stack_base + s.frames.back().top;
@@ -519,7 +518,7 @@ static Atom display_framebuffer(VmState& s, Atom pixels)
 
 	ByteVector& bytes = *slow_unbox<ByteVector>(s, pixels);
 	size_t expected = static_cast<size_t>(video.width) * static_cast<size_t>(video.height);
-	JET_DIE_UNLESS(&s, bytes.size() == expected, "display-framebuffer: %zu bytes, expected %zu",
+	JET_DIE_UNLESS(&s, bytes.size() == expected, "display-framebuffer: {} bytes, expected {}",
 	               bytes.size(),
 	               expected);
 
@@ -559,7 +558,7 @@ static Atom display_framebuffer(VmState& s, Atom pixels)
 static Atom set_palette(VmState& s, Atom colors)
 {
 	ByteVector& bytes = *slow_unbox<ByteVector>(s, colors);
-	JET_DIE_UNLESS(&s, bytes.size() == PALETTE_COLORS * 3, "set-palette: %zu bytes, expected %zu",
+	JET_DIE_UNLESS(&s, bytes.size() == PALETTE_COLORS * 3, "set-palette: {} bytes, expected {}",
 	               bytes.size(),
 	               PALETTE_COLORS * 3);
 
@@ -585,7 +584,7 @@ static Atom play_sound(VmState& s, Atom channel, Atom pcm, Atom rate)
 	size_t slot = voice_index(s, channel);
 	ByteVector& bytes = *slow_unbox<ByteVector>(s, pcm);
 	double hertz = slow_unbox<Number>(s, rate);
-	JET_DIE_UNLESS(&s, hertz > 0.0, "play-sound: rate is %g", hertz);
+	JET_DIE_UNLESS(&s, hertz > 0.0, "play-sound: rate is {}", hertz);
 	JET_DIE_UNLESS(&s, !bytes.empty(), "play-sound: no samples");
 
 	// Without a device nothing drains the voice, so it must never report itself as playing.
@@ -610,7 +609,7 @@ static uint8_t adlib_byte(VmState& s, Atom value, const char* name)
 	double number = slow_unbox<Number>(s, value);
 	JET_DIE_UNLESS(&s,
 	               std::isfinite(number) && number >= 0.0 && number <= 255.0 && std::floor(number) == number,
-	               "%s: %g, expected an integer from 0 to 255", name, number);
+	               "{}: {}, expected an integer from 0 to 255", name, number);
 
 	return static_cast<uint8_t>(number);
 }
@@ -650,7 +649,7 @@ static Atom set_sound_attenuation(VmState& s, Atom left, Atom right)
 	int right_step = static_cast<int>(slow_unbox<Number>(s, right));
 	JET_DIE_UNLESS(&s, left_step >= 0 && left_step <= MAX_ATTENUATION && right_step >= 0 &&
 	               right_step <= MAX_ATTENUATION,
-	               "set-sound-attenuation: %d and %d, expected 0 to %d", left_step, right_step,
+	               "set-sound-attenuation: {} and {}, expected 0 to {}", left_step, right_step,
 	               MAX_ATTENUATION);
 
 	const std::lock_guard<std::mutex> held{audio.lock};
@@ -713,7 +712,7 @@ static bool mouse_button_down(VmState& s, Atom button)
 		return video.mouse_buttons[SAPP_MOUSEBUTTON_MIDDLE];
 	}
 
-	JET_DIE(&s, "mouse-button-down?: unknown button '%s'", name.c_str());
+	JET_DIE(&s, "mouse-button-down?: unknown button '{}'", name);
 }
 
 static Atom set_window_title(VmState& s, Atom title)

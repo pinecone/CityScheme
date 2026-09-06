@@ -8,7 +8,6 @@
 #include "vm.h"
 #include <algorithm>
 #include <cstdio>
-#include <cinttypes>
 #include <cstring>
 #include <string>
 #include <string_view>
@@ -244,21 +243,19 @@ static void print_sites(const VmState& state)
 	{
 		return first->misses.total() > second->misses.total();
 	});
-	std::fprintf(stderr, "\nIC misses by instruction (top 25 by misses):\n");
-	std::fprintf(stderr, " same-code: different closure; changed: different code or non-lambda callee\n");
-	std::fprintf(stderr, " %-8s %12s %12s %7s %12s %12s %12s %12s %s\n", "opcode", "executions",
-	             "misses", "miss%", "first-fill", "same-code", "changed", "invalidated", "site");
+	print(stderr, "\nIC misses by instruction (top 25 by misses):\n");
+	print(stderr, " same-code: different closure; changed: different code or non-lambda callee\n");
+	print(stderr, " {:<8} {:>12} {:>12} {:>7} {:>12} {:>12} {:>12} {:>12} {}\n", "opcode", "executions",
+	      "misses", "miss%", "first-fill", "same-code", "changed", "invalidated", "site");
 	size_t shown{std::min<size_t>(sites.size(), 25)};
 	for (size_t index = 0; index < shown; ++index)
 	{
 		const SiteProfile& site{*sites[index]};
 		const IcMisses& misses{site.misses};
 		double percent{site.work.count ? 100.0 * misses.total() / site.work.count : 0.0};
-		std::fprintf(stderr, " %-8s %12" PRIu64 " %12" PRIu64 " %6.2f%% %12" PRIu64
-		             " %12" PRIu64 " %12" PRIu64 " %12" PRIu64 " %s\n", opcode_name(site.op),
-		             site.work.count, misses.total(), percent, misses.first, misses.same_code,
-		             misses.changed, misses.invalidated,
-		             profile_location(state, site.owner, site.offset).c_str());
+		print(stderr, " {:<8} {:12} {:12} {:6.2f}% {:12} {:12} {:12} {:12} {}\n", opcode_name(site.op),
+		      site.work.count, misses.total(), percent, misses.first, misses.same_code,
+		      misses.changed, misses.invalidated, profile_location(state, site.owner, site.offset));
 	}
 }
 
@@ -296,27 +293,26 @@ static void print_work(const VmState& state, uint64_t total_samples)
 	{
 		return first.work.samples > second.work.samples;
 	});
-	std::fprintf(stderr, "\nfunction samples (top 25; primitives and gc excluded):\n");
-	std::fprintf(stderr, " %12s %12s %7s %s\n", "dispatches", "samples", "wall%", "site");
+	print(stderr, "\nfunction samples (top 25; primitives and gc excluded):\n");
+	print(stderr, " {:>12} {:>12} {:>7} {}\n", "dispatches", "samples", "wall%", "site");
 	for (size_t index = 0; index < std::min<size_t>(ordered.size(), 25); ++index)
 	{
 		const Function& function{ordered[index]};
-		std::fprintf(stderr, " %12" PRIu64 " %12" PRIu64 " %6.2f%% %s\n", function.work.count,
-		             function.work.samples, percent(function.work.samples),
-		             profile_location(state, function.owner, 0).c_str());
+		print(stderr, " {:12} {:12} {:6.2f}% {}\n", function.work.count, function.work.samples,
+		      percent(function.work.samples), profile_location(state, function.owner, 0));
 	}
 	std::sort(sites.begin(), sites.end(), [](const SiteProfile* first, const SiteProfile* second)
 	{
 		return first->work.samples > second->work.samples;
 	});
-	std::fprintf(stderr, "\ninstruction samples (top 25; primitives and gc excluded):\n");
-	std::fprintf(stderr, " %-8s %12s %12s %7s %s\n", "opcode", "dispatches", "samples", "wall%", "site");
+	print(stderr, "\ninstruction samples (top 25; primitives and gc excluded):\n");
+	print(stderr, " {:<8} {:>12} {:>12} {:>7} {}\n", "opcode", "dispatches", "samples", "wall%", "site");
 	for (size_t index = 0; index < std::min<size_t>(sites.size(), 25); ++index)
 	{
 		const SiteProfile& site{*sites[index]};
-		std::fprintf(stderr, " %-8s %12" PRIu64 " %12" PRIu64 " %6.2f%% %s\n", opcode_name(site.op),
-		             site.work.count, site.work.samples, percent(site.work.samples),
-		             profile_location(state, site.owner, site.offset).c_str());
+		print(stderr, " {:<8} {:12} {:12} {:6.2f}% {}\n", opcode_name(site.op), site.work.count,
+		      site.work.samples, percent(site.work.samples),
+		      profile_location(state, site.owner, site.offset));
 	}
 
 	std::vector<const PrimitiveProfile*> primitives;
@@ -332,13 +328,13 @@ static void print_work(const VmState& state, uint64_t total_samples)
 	{
 		return first->work.samples > second->work.samples;
 	});
-	std::fprintf(stderr, "\nprimitive samples (nested VM calls and gc excluded):\n");
-	std::fprintf(stderr, " host primitives include time between callbacks\n");
-	std::fprintf(stderr, " %12s %12s %7s %s\n", "calls", "samples", "wall%", "primitive");
+	print(stderr, "\nprimitive samples (nested VM calls and gc excluded):\n");
+	print(stderr, " host primitives include time between callbacks\n");
+	print(stderr, " {:>12} {:>12} {:>7} {}\n", "calls", "samples", "wall%", "primitive");
 	for (const PrimitiveProfile* primitive : primitives)
 	{
-		std::fprintf(stderr, " %12" PRIu64 " %12" PRIu64 " %6.2f%% %s\n", primitive->work.count,
-		             primitive->work.samples, percent(primitive->work.samples), primitive->name.c_str());
+		print(stderr, " {:12} {:12} {:6.2f}% {}\n", primitive->work.count,
+		      primitive->work.samples, percent(primitive->work.samples), primitive->name);
 	}
 }
 
@@ -352,11 +348,10 @@ static void print_durations(const char* name, const ProfileDurations& durations)
 	{
 		return std::ceil(durations.quantile(fraction) / 1e3) / 1e3;
 	};
-	std::fprintf(stderr, "\n%s: %" PRIu64 " calls, %.3f ms total\n", name,
-	             durations.count, durations.total / 1e6);
-	std::fprintf(stderr, " min %.3f  p50<=%.3f  p90<=%.3f  p99<=%.3f  max %.3f  (ms)\n",
-	             durations.minimum / 1e6, upper(0.50), upper(0.90), upper(0.99), durations.maximum / 1e6);
-	std::fprintf(stderr, " quantile upper bounds have at most 6.25%% bucket error\n");
+	print(stderr, "\n{}: {} calls, {:.3f} ms total\n", name, durations.count, durations.total / 1e6);
+	print(stderr, " min {:.3f}  p50<={:.3f}  p90<={:.3f}  p99<={:.3f}  max {:.3f}  (ms)\n",
+	      durations.minimum / 1e6, upper(0.50), upper(0.90), upper(0.99), durations.maximum / 1e6);
+	print(stderr, " quantile upper bounds have at most 6.25% bucket error\n");
 }
 
 static void print_fields()
@@ -366,9 +361,9 @@ static void print_fields()
 	constexpr const char* field_receivers[] = {
 		"vector", "string", "bytevector", "scheme", "tuple", "hashset", "hashmap", "cursor", "other",
 	};
-	std::fprintf(stderr, "\nfield IC outcomes:\n");
-	std::fprintf(stderr, " %-8s %-9s %12s %12s %12s %12s %12s\n", "opcode", "receiver", "total",
-	             "hit/hit", "hit/key-miss", "recv-miss/hit", "both-miss");
+	print(stderr, "\nfield IC outcomes:\n");
+	print(stderr, " {:<8} {:<9} {:>12} {:>12} {:>12} {:>12} {:>12}\n", "opcode", "receiver", "total",
+	      "hit/hit", "hit/key-miss", "recv-miss/hit", "both-miss");
 	for (Opcode field_op : field_ops)
 	{
 		int op{static_cast<int>(field_op)};
@@ -379,11 +374,10 @@ static void print_fields()
 			{
 				continue;
 			}
-			std::fprintf(stderr, " %-8s %-9s %12" PRIu64, opcode_name(op),
-			             field_receivers[receiver], field.count);
+			print(stderr, " {:<8} {:<9} {:12}", opcode_name(op), field_receivers[receiver], field.count);
 			for (uint64_t count : field.outcome_counts)
 			{
-				std::fprintf(stderr, " %12" PRIu64, count);
+				print(stderr, " {:12}", count);
 			}
 			std::fputc('\n', stderr);
 		}
@@ -416,13 +410,12 @@ static void print_pairs(uint64_t total_ops)
 	{
 		return first.count > second.count;
 	});
-	std::fprintf(stderr, "\ntop dispatched pairs by count (prev -> curr):\n");
+	print(stderr, "\ntop dispatched pairs by count (prev -> curr):\n");
 	for (size_t index = 0; index < shown; ++index)
 	{
 		double percent{total_ops ? 100.0 * pairs[index].count / total_ops : 0.0};
-		std::fprintf(stderr, " %-14s -> %-14s %12" PRIu64 " %5.1f%%\n",
-		             opcode_name(pairs[index].prev), opcode_name(pairs[index].curr),
-		             pairs[index].count, percent);
+		print(stderr, " {:<14} -> {:<14} {:12} {:5.1f}%\n", opcode_name(pairs[index].prev),
+		      opcode_name(pairs[index].curr), pairs[index].count, percent);
 	}
 }
 
@@ -461,18 +454,17 @@ static void profile_print(const VmState& state)
 		total_samples += count;
 	}
 
-	std::fprintf(stderr, "\n--- JET_PROFILE ---\n");
-	std::fprintf(stderr, "opcodes dispatched: %" PRIu64 "\n", total_ops);
-	std::fprintf(stderr, " lambda calls: %" PRIu64 "\n", g_profile.lambda_calls);
-	std::fprintf(stderr, " primitive calls: %" PRIu64 "\n", g_profile.prim_calls);
-	std::fprintf(stderr, " gc collections: %" PRIu64 "\n", g_profile.gc_collections);
-	std::fprintf(stderr, " wall time: %.3f ms\n", elapsed_ns / 1e6);
-	std::fprintf(stderr, " wall samples: %" PRIu64 " (1 ms target interval; scheduling can delay samples)\n",
-	             total_samples);
-	std::fprintf(stderr, " counts are exact; sample shares are estimates and include profiler overhead\n");
-	std::fprintf(stderr, " unsampled work has unknown time; periodic work can bias sampling\n");
-	std::fprintf(stderr, " sites use function@bytecode-offset+instruction-offset\n");
-	std::fprintf(stderr, "\nopcode histogram (sorted by count):\n");
+	print(stderr, "\n--- JET_PROFILE ---\n");
+	print(stderr, "opcodes dispatched: {}\n", total_ops);
+	print(stderr, " lambda calls: {}\n", g_profile.lambda_calls);
+	print(stderr, " primitive calls: {}\n", g_profile.prim_calls);
+	print(stderr, " gc collections: {}\n", g_profile.gc_collections);
+	print(stderr, " wall time: {:.3f} ms\n", elapsed_ns / 1e6);
+	print(stderr, " wall samples: {} (1 ms target interval; scheduling can delay samples)\n", total_samples);
+	print(stderr, " counts are exact; sample shares are estimates and include profiler overhead\n");
+	print(stderr, " unsampled work has unknown time; periodic work can bias sampling\n");
+	print(stderr, " sites use function@bytecode-offset+instruction-offset\n");
+	print(stderr, "\nopcode histogram (sorted by count):\n");
 
 	int order[256];
 	for (int index = 0; index < 256; ++index)
@@ -492,19 +484,19 @@ static void profile_print(const VmState& state)
 			break;
 		}
 		double percent{total_ops ? 100.0 * count / total_ops : 0.0};
-		std::fprintf(stderr, " %-14s %12" PRIu64 " %5.1f%%\n", opcode_name(order[index]), count, percent);
+		print(stderr, " {:<14} {:12} {:5.1f}%\n", opcode_name(order[index]), count, percent);
 	}
 
 	std::sort(order, order + 256, [&samples](int first, int second)
 	{
 		return samples[first] > samples[second];
 	});
-	std::fprintf(stderr, "\nopcode samples (primitives and gc excluded):\n");
-	std::fprintf(stderr, " %-14s %12s %7s\n", "opcode", "samples", "wall%");
+	print(stderr, "\nopcode samples (primitives and gc excluded):\n");
+	print(stderr, " {:<14} {:>12} {:>7}\n", "opcode", "samples", "wall%");
 	auto&& print_samples = [total_samples](const char* name, uint64_t count)
 	{
 		double percent{total_samples ? 100.0 * count / total_samples : 0.0};
-		std::fprintf(stderr, " %-14s %12" PRIu64 " %6.2f%%\n", name, count, percent);
+		print(stderr, " {:<14} {:12} {:6.2f}%\n", name, count, percent);
 	};
 	for (int op : order)
 	{
@@ -531,8 +523,8 @@ static void profile_print(const VmState& state)
 			return g_profile.ic_misses[first] > g_profile.ic_misses[second];
 		});
 
-		std::fprintf(stderr, "\nIC misses (sorted by miss count):\n");
-		std::fprintf(stderr, " %-14s %12s %12s %7s\n", "opcode", "total", "misses", "miss%");
+		print(stderr, "\nIC misses (sorted by miss count):\n");
+		print(stderr, " {:<14} {:>12} {:>12} {:>7}\n", "opcode", "total", "misses", "miss%");
 		for (int index = 0; index < 256; ++index)
 		{
 			int op{order[index]};
@@ -543,8 +535,7 @@ static void profile_print(const VmState& state)
 			}
 			uint64_t total{g_profile.op_counts[op]};
 			double miss_pct{total ? 100.0 * misses / total : 0.0};
-			std::fprintf(stderr, " %-14s %12" PRIu64 " %12" PRIu64 " %6.2f%%\n", opcode_name(op),
-			             total, misses, miss_pct);
+			print(stderr, " {:<14} {:12} {:12} {:6.2f}%\n", opcode_name(op), total, misses, miss_pct);
 		}
 
 		print_sites(state);
@@ -554,7 +545,7 @@ static void profile_print(const VmState& state)
 	print_durations("host-to-VM calls", g_profile.host_calls);
 	if (g_profile.host_calls.count != 0)
 	{
-		std::fprintf(stderr, " callback durations include gc; nested calls overlap\n");
+		print(stderr, " callback durations include gc; nested calls overlap\n");
 	}
 	print_fields();
 	print_pairs(total_ops);
@@ -620,44 +611,44 @@ void decode_args(FILE* out, uint8_t op, Code* p)
 	if (is_call_slot_op(op))
 	{
 		OP_call_slot* o = reinterpret_cast<OP_call_slot*>(p);
-		std::fprintf(out, " w=%u upvalue=%u nargs=%u", o->w, o->upvalue_idx, o->nargs);
+		print(out, " w={} upvalue={} nargs={}", o->w, o->upvalue_idx, o->nargs);
 		return;
 	}
 	if (is_call_atom_op(op))
 	{
 		OP_call_atom* o = reinterpret_cast<OP_call_atom*>(p);
-		std::fprintf(out, " w=%u idx=%u nargs=%u", o->w, o->idx, o->nargs);
+		print(out, " w={} idx={} nargs={}", o->w, o->idx, o->nargs);
 		return;
 	}
 	if (is_call_self_op(op))
 	{
 		OP_call_self* o = reinterpret_cast<OP_call_self*>(p);
-		std::fprintf(out, " w=%u nargs=%u", o->w, o->nargs);
+		print(out, " w={} nargs={}", o->w, o->nargs);
 		return;
 	}
 	switch (static_cast<Opcode>(op))
 	{
 		case Opcode::skip:
-			std::fprintf(out, " size=%zu", reinterpret_cast<OP_skip*>(p)->size);
+			print(out, " size={}", reinterpret_cast<OP_skip*>(p)->size);
 			break;
 		case Opcode::mov:
 		case Opcode::trunc:
 		{
 			OP_mov* o = reinterpret_cast<OP_mov*>(p);
-			std::fprintf(out, " dst=%u src=%u", o->dst, o->src);
+			print(out, " dst={} src={}", o->dst, o->src);
 			break;
 		}
 		case Opcode::mov2:
 		{
 			OP_mov2* o = reinterpret_cast<OP_mov2*>(p);
-			std::fprintf(out, " dst0=%u src0=%u dst1=%u src1=%u", o->first.dst, o->first.src,
-			             o->second.dst, o->second.src);
+			print(out, " dst0={} src0={} dst1={} src1={}", o->first.dst, o->first.src,
+			      o->second.dst, o->second.src);
 			break;
 		}
 		case Opcode::ldk:
 		{
 			OP_ldk* o = reinterpret_cast<OP_ldk*>(p);
-			std::fprintf(out, " dst=%u k=%u", o->dst, o->idx);
+			print(out, " dst={} k={}", o->dst, o->idx);
 			break;
 		}
 		case Opcode::ldu:
@@ -665,23 +656,23 @@ void decode_args(FILE* out, uint8_t op, Code* p)
 		case Opcode::ldd:
 		{
 			OP_ldu* o = reinterpret_cast<OP_ldu*>(p);
-			std::fprintf(out, " dst=%u idx=%u", o->dst, o->idx);
+			print(out, " dst={} idx={}", o->dst, o->idx);
 			break;
 		}
 		case Opcode::stu:
 		case Opcode::std:
 		{
 			OP_stu* o = reinterpret_cast<OP_stu*>(p);
-			std::fprintf(out, " idx=%u src=%u", o->idx, o->src);
+			print(out, " idx={} src={}", o->idx, o->src);
 			break;
 		}
 		case Opcode::box:
-			std::fprintf(out, " reg=%u", reinterpret_cast<OP_box*>(p)->reg);
+			print(out, " reg={}", reinterpret_cast<OP_box*>(p)->reg);
 			break;
 		case Opcode::clos:
 		{
 			OP_clos* o = reinterpret_cast<OP_clos*>(p);
-			std::fprintf(out, " dst=%u idx=%u n_captures=%u", o->dst, o->pool_idx, o->n_captures);
+			print(out, " dst={} idx={} n_captures={}", o->dst, o->pool_idx, o->n_captures);
 			break;
 		}
 		case Opcode::add:
@@ -696,7 +687,7 @@ void decode_args(FILE* out, uint8_t op, Code* p)
 		case Opcode::ge:
 		{
 			OP_binop_rr* o = reinterpret_cast<OP_binop_rr*>(p);
-			std::fprintf(out, " dst=%u a=%u b=%u", o->dst, o->a, o->b);
+			print(out, " dst={} a={} b={}", o->dst, o->a, o->b);
 			break;
 		}
 		case Opcode::addk:
@@ -708,13 +699,13 @@ void decode_args(FILE* out, uint8_t op, Code* p)
 		case Opcode::ltk:
 		{
 			OP_binop_rk* o = reinterpret_cast<OP_binop_rk*>(p);
-			std::fprintf(out, " dst=%u a=%u k=%u", o->dst, o->a, o->b);
+			print(out, " dst={} a={} k={}", o->dst, o->a, o->b);
 			break;
 		}
 		case Opcode::if_false:
 		{
 			OP_if_false* o = reinterpret_cast<OP_if_false*>(p);
-			std::fprintf(out, " src=%u size=%u", o->src, o->size);
+			print(out, " src={} size={}", o->src, o->size);
 			break;
 		}
 		case Opcode::if_numeq:
@@ -725,7 +716,7 @@ void decode_args(FILE* out, uint8_t op, Code* p)
 		case Opcode::if_ge:
 		{
 			OP_if_cmp* o = reinterpret_cast<OP_if_cmp*>(p);
-			std::fprintf(out, " a=%u b=%u size=%u", o->a, o->b, o->size);
+			print(out, " a={} b={} size={}", o->a, o->b, o->size);
 			break;
 		}
 		case Opcode::if_numeqk:
@@ -733,91 +724,90 @@ void decode_args(FILE* out, uint8_t op, Code* p)
 		case Opcode::if_ltk:
 		{
 			OP_if_cmp* o = reinterpret_cast<OP_if_cmp*>(p);
-			std::fprintf(out, " a=%u k=%u size=%u", o->a, o->b, o->size);
+			print(out, " a={} k={} size={}", o->a, o->b, o->size);
 			break;
 		}
 		case Opcode::retv:
-			std::fprintf(out, " src=%u", reinterpret_cast<OP_retv*>(p)->src);
+			print(out, " src={}", reinterpret_cast<OP_retv*>(p)->src);
 			break;
 		case Opcode::call:
 		case Opcode::tcall:
 		{
 			OP_call* o = reinterpret_cast<OP_call*>(p);
-			std::fprintf(out, " w=%u callee=%u nargs=%u", o->w, o->callee, o->nargs);
+			print(out, " w={} callee={} nargs={}", o->w, o->callee, o->nargs);
 			break;
 		}
 		case Opcode::call_self_tail:
 		{
 			OP_call_self_tail* o = reinterpret_cast<OP_call_self_tail*>(p);
-			std::fprintf(out, " w=%u nargs=%u", o->w, o->nargs);
+			print(out, " w={} nargs={}", o->w, o->nargs);
 			break;
 		}
 		case Opcode::apply:
-			std::fprintf(out, " w=%u", reinterpret_cast<OP_apply*>(p)->w);
+			print(out, " w={}", reinterpret_cast<OP_apply*>(p)->w);
 			break;
 		case Opcode::reset:
 		case Opcode::coro:
-			std::fprintf(out, " w=%u", reinterpret_cast<OP_reset*>(p)->w);
+			print(out, " w={}", reinterpret_cast<OP_reset*>(p)->w);
 			break;
 		case Opcode::iter_next1:
 		{
 			OP_iter_next1* o = reinterpret_cast<OP_iter_next1*>(p);
-			std::fprintf(out, " cursor=%u dst=%u size=%u", o->cursor, o->dst, o->size);
+			print(out, " cursor={} dst={} size={}", o->cursor, o->dst, o->size);
 			break;
 		}
 		case Opcode::iter_next2:
 		{
 			OP_iter_next2* o = reinterpret_cast<OP_iter_next2*>(p);
-			std::fprintf(out, " cursor=%u dst0=%u dst1=%u size=%u", o->cursor, o->dst0, o->dst1,
-			             o->size);
+			print(out, " cursor={} dst0={} dst1={} size={}", o->cursor, o->dst0, o->dst1, o->size);
 			break;
 		}
 		case Opcode::ldf:
 		{
 			OP_ldf* o = reinterpret_cast<OP_ldf*>(p);
-			std::fprintf(out, " dst=%u obj=%u key=%u", o->dst, o->obj, o->key);
+			print(out, " dst={} obj={} key={}", o->dst, o->obj, o->key);
 			break;
 		}
 		case Opcode::stf:
 		{
 			OP_stf* o = reinterpret_cast<OP_stf*>(p);
-			std::fprintf(out, " obj=%u key=%u val=%u", o->obj, o->key, o->val);
+			print(out, " obj={} key={} val={}", o->obj, o->key, o->val);
 			break;
 		}
 		case Opcode::ldfk:
 		{
 			OP_ldfk* o = reinterpret_cast<OP_ldfk*>(p);
-			std::fprintf(out, " dst=%u obj=%u k=%u", o->dst, o->obj, o->key_idx);
+			print(out, " dst={} obj={} k={}", o->dst, o->obj, o->key_idx);
 			break;
 		}
 		case Opcode::stfk:
 		{
 			OP_stfk* o = reinterpret_cast<OP_stfk*>(p);
-			std::fprintf(out, " obj=%u k=%u val=%u", o->obj, o->key_idx, o->val);
+			print(out, " obj={} k={} val={}", o->obj, o->key_idx, o->val);
 			break;
 		}
 		case Opcode::ldfh:
 		{
 			OP_ldfh* o = reinterpret_cast<OP_ldfh*>(p);
-			std::fprintf(out, " dst=%u obj=%u key=%u", o->dst, o->obj, o->key);
+			print(out, " dst={} obj={} key={}", o->dst, o->obj, o->key);
 			break;
 		}
 		case Opcode::ldfkh:
 		{
 			OP_ldfkh* o = reinterpret_cast<OP_ldfkh*>(p);
-			std::fprintf(out, " dst=%u obj=%u k=%u", o->dst, o->obj, o->key_idx);
+			print(out, " dst={} obj={} k={}", o->dst, o->obj, o->key_idx);
 			break;
 		}
 		case Opcode::ldfo:
 		{
 			OP_ldfo* o = reinterpret_cast<OP_ldfo*>(p);
-			std::fprintf(out, " dst=%u obj=%u key=%u dfl=%u", o->dst, o->obj, o->key, o->dfl);
+			print(out, " dst={} obj={} key={} dfl={}", o->dst, o->obj, o->key, o->dfl);
 			break;
 		}
 		case Opcode::ldfko:
 		{
 			OP_ldfko* o = reinterpret_cast<OP_ldfko*>(p);
-			std::fprintf(out, " dst=%u obj=%u k=%u dfl=%u", o->dst, o->obj, o->key_idx, o->dfl);
+			print(out, " dst={} obj={} k={} dfl={}", o->dst, o->obj, o->key_idx, o->dfl);
 			break;
 		}
 		default:
@@ -851,15 +841,15 @@ void trace_step(VmState& s, Frame*, Code* pc, Atom* stack_top)
 		return result;
 	};
 	uint8_t op = pc[-1];
-	std::fprintf(stderr, "[d=%zu sp=%ld] %s", s.frames.size(), stack_top - s.stack_base, opcode_name(op));
+	print(stderr, "[d={} sp={}] {}", s.frames.size(), stack_top - s.stack_base, opcode_name(op));
 	decode_args(stderr, op, pc);
 
-	std::fprintf(stderr, "  | top:");
+	print(stderr, "  | top:");
 	long depth = stack_top - s.stack_base;
 	long show = depth < 6 ? depth : 6;
 	for (long i = show; i > 0; --i)
 	{
-		std::fprintf(stderr, " %s", brief(stack_top[-i]).c_str());
+		print(stderr, " {}", brief(stack_top[-i]));
 	}
 	std::fputc('\n', stderr);
 }
@@ -892,12 +882,12 @@ namespace
 		{
 			return;
 		}
-		const char* file = "?";
+		std::string_view file = "?";
 		if (line->file < files.size())
 		{
-			file = files[line->file].c_str();
+			file = files[line->file];
 		}
-		std::fprintf(out, "  ; %s:%u", file, line->line);
+		print(out, "  ; {}:{}", file, line->line);
 	}
 
 	void disasm_code_block(FILE* out, Code* start, size_t size,
@@ -911,7 +901,7 @@ namespace
 			size_t off = static_cast<size_t>(p - start);
 			uint8_t tag = p[VM_OP_SLOT_SIZE];
 			Code* operand = p + OPCODE_SIZE;
-			std::fprintf(out, "  %04zu  %s", off, opcode_name(tag));
+			print(out, "  {:04}  {}", off, opcode_name(tag));
 			decode_args(out, tag, operand);
 			print_source_loc(out, dbg, files, off, size);
 			std::fputc('\n', out);
@@ -939,28 +929,28 @@ namespace
 	Code* disasm_pool_entry(FILE* out, Code* p, uint32_t idx, std::vector<LambdaBlock>& lambdas)
 	{
 		ConstTag tag = static_cast<ConstTag>(*p++);
-		std::fprintf(out, "  [%4u] %-10s ", idx, const_tag_name(tag));
+		print(out, "  [{:4}] {:<10} ", idx, const_tag_name(tag));
 		switch (tag)
 		{
 			case ConstTag::Number:
 			{
 				double n;
 				std::memcpy(&n, p, sizeof(n));
-				std::fprintf(out, "%g\n", n);
+				print(out, "{}\n", n);
 				return p + sizeof(n);
 			}
 			case ConstTag::Boolean:
 			{
 				bool b;
 				std::memcpy(&b, p, sizeof(b));
-				std::fprintf(out, "%s\n", b ? "#t" : "#f");
+				print(out, "{}\n", b ? "#t" : "#f");
 				return p + sizeof(b);
 			}
 			case ConstTag::Character:
 			{
 				Character c;
 				std::memcpy(&c, p, sizeof(c));
-				std::fprintf(out, "U+%04x\n", c);
+				print(out, "U+{:04x}\n", c);
 				return p + sizeof(c);
 			}
 			case ConstTag::String:
@@ -968,15 +958,15 @@ namespace
 				uint32_t n_string_bytes;
 				std::memcpy(&n_string_bytes, p, sizeof(n_string_bytes));
 				p += sizeof(n_string_bytes);
-				std::fprintf(out, "\"%.*s\"\n", static_cast<int>(n_string_bytes),
-				             reinterpret_cast<const char*>(p));
+				std::string_view text{reinterpret_cast<const char*>(p), n_string_bytes};
+				print(out, "\"{}\"\n", text);
 				return p + n_string_bytes;
 			}
 			case ConstTag::Symbol:
 			case ConstTag::GlobalName:
 			{
 				const char* s = reinterpret_cast<const char*>(p);
-				std::fprintf(out, "\"%s\"\n", s);
+				print(out, "\"{}\"\n", s);
 				return p + std::strlen(s) + 1;
 			}
 			case ConstTag::EmptyList:
@@ -1002,11 +992,11 @@ namespace
 				p += sizeof(code_size);
 				Code* code = p;
 				const char* name = reinterpret_cast<const char*>(code + code_size);
-				std::fprintf(out, "arity=%s%zu n_locals=%u code_size=%zu", is_n_ary ? "n-ary≥" : "", arity,
-				             n_locals, code_size);
+				print(out, "arity={}{} n_locals={} code_size={}", is_n_ary ? "n-ary≥" : "", arity,
+				      n_locals, code_size);
 				if (*name)
 				{
-					std::fprintf(out, " name=\"%s\"", name);
+					print(out, " name=\"{}\"", name);
 				}
 				std::fputc('\n', out);
 				lambdas.push_back({idx, code, code_size, arity, is_n_ary, n_locals, name});
@@ -1029,7 +1019,7 @@ void disassemble(FILE* out, Code* bc, size_t bc_size)
 	auto require_bytes = [&](size_t n, const char* what)
 	{
 		JET_DIE_WHEN(nullptr, static_cast<size_t>(end - p) < n,
-		             "invalid bytecode: not enough bytes for %s", what);
+		             "invalid bytecode: not enough bytes for {}", what);
 	};
 
 	uint32_t n_toplevel_slots, n_constants;
@@ -1040,11 +1030,11 @@ void disassemble(FILE* out, Code* bc, size_t bc_size)
 	std::memcpy(&n_constants, p, sizeof(n_constants));
 	p += sizeof(n_constants);
 
-	std::fprintf(out, "=== header ===\n");
-	std::fprintf(out, "  n_toplevel_slots = %u\n", n_toplevel_slots);
-	std::fprintf(out, "  n_constants      = %u\n\n", n_constants);
+	print(out, "=== header ===\n");
+	print(out, "  n_toplevel_slots = {}\n", n_toplevel_slots);
+	print(out, "  n_constants      = {}\n\n", n_constants);
 
-	std::fprintf(out, "=== pool ===\n");
+	print(out, "=== pool ===\n");
 	std::vector<LambdaBlock> lambdas;
 	for (uint32_t i = 0; i < n_constants; ++i)
 	{
@@ -1053,23 +1043,23 @@ void disassemble(FILE* out, Code* bc, size_t bc_size)
 	std::fputc('\n', out);
 
 	JET_DIE_WHEN(nullptr, source_maps.size() != lambdas.size() + 1,
-	             "invalid debug section: table count %zu does not match %zu lambdas plus toplevel",
+	             "invalid debug section: table count {} does not match {} lambdas plus toplevel",
 	             source_maps.size(), lambdas.size());
 	size_t code_size = static_cast<size_t>(end - p);
-	std::fprintf(out, "=== toplevel code (%zu bytes) ===\n", code_size);
+	print(out, "=== toplevel code ({} bytes) ===\n", code_size);
 	disasm_code_block(out, p, code_size, source_maps[lambdas.size()], files);
 
 	for (size_t li = 0; li < lambdas.size(); ++li)
 	{
 		const LambdaBlock& lb = lambdas[li];
 		std::fputc('\n', out);
-		std::fprintf(out, "=== lambda [%u]", lb.pool_idx);
+		print(out, "=== lambda [{}]", lb.pool_idx);
 		if (*lb.name)
 		{
-			std::fprintf(out, " %s", lb.name);
+			print(out, " {}", lb.name);
 		}
-		std::fprintf(out, " (%zu bytes, arity=%s%zu, n_locals=%u) ===\n", lb.size,
-		             lb.is_n_ary ? "n-ary≥" : "", lb.arity, lb.n_locals);
+		print(out, " ({} bytes, arity={}{}, n_locals={}) ===\n", lb.size,
+		      lb.is_n_ary ? "n-ary≥" : "", lb.arity, lb.n_locals);
 		disasm_code_block(out, lb.code, lb.size, source_maps[li], files);
 	}
 }

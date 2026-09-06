@@ -85,7 +85,7 @@ JET_ALWAYS_INLINE static void destroy_object(
 Gc::Gc()
 {
 	void* p = ::mmap(nullptr, ARENA_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
-	JET_DIE_UNLESS(nullptr, p != MAP_FAILED, "gc: mmap %zu bytes failed", ARENA_SIZE);
+	JET_DIE_UNLESS(nullptr, p != MAP_FAILED, "gc: mmap {} bytes failed", ARENA_SIZE);
 	arena_base = static_cast<char*>(p);
 
 	size_t bm_bytes = BITMAP_WORDS * sizeof(uint64_t);
@@ -437,20 +437,18 @@ JET_COLD static void print_stack_frame(VmState& s, Frame& f)
 	}
 	if (line == nullptr || line->file >= s.debug.files.size())
 	{
-		std::fprintf(stderr, "  %.*s\n", static_cast<int>(name.size()), name.data());
+		print(stderr, "  {}\n", name);
 		return;
 	}
 	const std::string& file = s.debug.files[line->file];
-	std::fprintf(stderr, "  %.*s at %.*s:%u\n", static_cast<int>(name.size()), name.data(),
-	             static_cast<int>(file.size()), file.data(), line->line);
+	print(stderr, "  {} at {}:{}\n", name, file, line->line);
 }
 
 [[noreturn]] JET_NOINLINE void die_type_mismatch(VmState& s, Atom a, jet::Type t)
 {
 	std::string_view want = type_name(t);
 	std::string_view got = type_name(a.type());
-	JET_DIE(&s, "expected <%.*s>, got <%.*s>", static_cast<int>(want.size()), want.data(),
-	        static_cast<int>(got.size()), got.data());
+	JET_DIE(&s, "expected <{}>, got <{}>", want, got);
 }
 
 JET_COLD void print_stack_trace(VmState* vm)
@@ -543,14 +541,14 @@ LoadedProgram load_program(VmState& s, Code* bytecode, size_t n_bytes)
 	std::vector<LambdaDebug> source_maps;
 	p = parse_debug_section(&s, p, end, s.debug.files, source_maps);
 	JET_DIE_UNLESS(&s, static_cast<size_t>(end - p) >= sizeof(prog.n_toplevel_slots),
-	               "invalid bytecode: not enough bytes for n_toplevel_slots (size = %zu, consumed = %zu)",
-	               n_bytes, static_cast<size_t>(p - bytecode));
+	               "invalid bytecode: not enough bytes for n_toplevel_slots (size = {}, consumed = {})",
+	               n_bytes, p - bytecode);
 	memcpy(&prog.n_toplevel_slots, p, sizeof(prog.n_toplevel_slots));
 	p += sizeof(prog.n_toplevel_slots);
 	uint32_t n_constants;
 	JET_DIE_UNLESS(&s, static_cast<size_t>(end - p) >= sizeof(n_constants),
-	               "invalid bytecode: not enough bytes for n_constants (size = %zu, consumed = %zu)",
-	               n_bytes, static_cast<size_t>(p - bytecode));
+	               "invalid bytecode: not enough bytes for n_constants (size = {}, consumed = {})",
+	               n_bytes, p - bytecode);
 	memcpy(&n_constants, p, sizeof(n_constants));
 	p += sizeof(n_constants);
 	size_t next_source_map = 0;
@@ -604,7 +602,7 @@ LoadedProgram load_program(VmState& s, Code* bytecode, size_t n_bytes)
 			{
 				char* name = reinterpret_cast<char*>(code);
 				Atom* atom = s.env.lookup(name);
-				JET_DIE_UNLESS(&s, atom, "unknown primitive in pool: <%s>", name);
+				JET_DIE_UNLESS(&s, atom, "unknown primitive in pool: <{}>", name);
 				out = *atom;
 				return code + strlen(name) + 1;
 			}
@@ -642,7 +640,7 @@ LoadedProgram load_program(VmState& s, Code* bytecode, size_t n_bytes)
 				return code;
 			}
 		}
-		JET_DIE(&s, "unknown constant-pool tag <%d>", static_cast<int>(tag));
+		JET_DIE(&s, "unknown constant-pool tag <{}>", static_cast<int>(tag));
 	};
 	prog.constants.reserve(n_constants);
 	for (uint32_t i = 0; i < n_constants; ++i)
@@ -921,7 +919,7 @@ JET_NOINLINE JET_PRESERVE_NONE static void op_enter_yield(VM_OP_PARAMS)
 JET_NOINLINE JET_PRESERVE_NONE static void die_not_callable(VM_OP_PARAMS)
 {
 	std::string_view name = type_name(callee.type());
-	JET_DIE(&s, "cannot call <%.*s>", static_cast<int>(name.size()), name.data());
+	JET_DIE(&s, "cannot call <{}>", name);
 }
 
 template <CallTail tail>
@@ -976,18 +974,18 @@ ObjShape g_shape_by_tag[jet_tag::HEAP_END] = {};
 
 JET_NOINLINE JET_PRESERVE_NONE static void die_iter_exhausted(VM_OP_PARAMS)
 {
-	JET_DIE(&s, "%%if/next!: cursor is exhausted");
+	JET_DIE(&s, "%if/next!: cursor is exhausted");
 }
 
 JET_NOINLINE JET_PRESERVE_NONE static void die_iter_expected_cursor(VM_OP_PARAMS)
 {
-	JET_DIE(&s, "%%if/next!: expected a cursor");
+	JET_DIE(&s, "%if/next!: expected a cursor");
 }
 
 template <int outputs>
 JET_NOINLINE JET_PRESERVE_NONE static void die_iter_bad_outputs(VM_OP_PARAMS)
 {
-	JET_DIE(&s, "%%if/next!: cursor does not supply %d outputs", outputs);
+	JET_DIE(&s, "%if/next!: cursor does not supply {} outputs", outputs);
 }
 
 enum class IterResult
@@ -1080,9 +1078,9 @@ JET_NOINLINE JET_PRESERVE_NONE static void die_iter_vector_index(VM_OP_PARAMS)
 	VectorCursor* cursor = static_cast<VectorCursor*>(unbox<Struct>(frame_regs[op->cursor]));
 	if (!cursor->vector)
 	{
-		JET_DIE(&s, "%%if/next!: cursor is exhausted");
+		JET_DIE(&s, "%if/next!: cursor is exhausted");
 	}
-	JET_DIE(&s, "%%if/next!: vector cursor index %zu exceeds size %zu",
+	JET_DIE(&s, "%if/next!: vector cursor index {} exceeds size {}",
 	        cursor->vector->cursor_indices[cursor->slot], cursor->vector->size());
 }
 
@@ -1332,7 +1330,7 @@ JET_NOINLINE JET_PRESERVE_NONE static void op_iter_coro_slow(VM_OP_PARAMS)
 		case CoroState::Running:
 			if (coro->running_index < s.running.size() && s.running[coro->running_index] == coro)
 			{
-				JET_DIE(&s, "%%if/next!: coroutine is already running");
+				JET_DIE(&s, "%if/next!: coroutine is already running");
 			}
 			// Abandoned by a crossing escape; membership can never hold again.
 			coro->state = CoroState::Dead;
@@ -1714,7 +1712,7 @@ JET_PRESERVE_NONE static void op_skip(VM_OP_PARAMS)
 
 JET_PRESERVE_NONE static void op_unknown(VM_OP_PARAMS)
 {
-	JET_DIE(&s, "unknown opcode 0x%02x. it could be anything", pc[-1]);
+	JET_DIE(&s, "unknown opcode 0x{:02x}. it could be anything", pc[-1]);
 }
 
 JET_PRESERVE_NONE static void op_label(VM_OP_PARAMS)
@@ -2132,7 +2130,7 @@ JET_REPLICATE(X, call_self, "cself")
                        size_t initial_stack_size)
 {
 	JET_DIE_WHEN(&vm, initial_stack_size > STACK_CAPACITY - STACK_SLACK,
-	             "stack overflow: %zu toplevel slots", initial_stack_size);
+	             "stack overflow: {} toplevel slots", initial_stack_size);
 
 	vm.stack_base = vm.stack.get();
 	vm.stack_end = vm.stack.get() + STACK_CAPACITY;

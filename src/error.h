@@ -4,7 +4,7 @@
 #ifndef error_h
 #define error_h
 
-#include <cstdio>
+#include "platform.h"
 #include <cstdlib>
 
 struct VmState;
@@ -14,7 +14,7 @@ void print_stack_trace(VmState* vm);
 #define JET_DIE(vm_, fmt, ...)                                                                              \
 	do                                                                                                       \
 	{                                                                                                        \
-		std::fprintf(stderr, fmt "\n" __VA_OPT__(, ) __VA_ARGS__);                                           \
+		print(stderr, fmt "\n" __VA_OPT__(, ) __VA_ARGS__);                                           \
 		print_stack_trace(vm_);                                                                              \
 		std::exit(1);                                                                                        \
 	} while (0)

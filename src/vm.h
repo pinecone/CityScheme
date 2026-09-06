@@ -110,7 +110,7 @@ inline bool test_bit(const uint64_t* bits, size_t i)
 inline void* checked_malloc(VmState* vm, size_t bytes)
 {
 	void* mem = std::malloc(bytes);
-	JET_DIE_UNLESS(vm, mem != nullptr, "gc: out of memory allocating %zu bytes", bytes);
+	JET_DIE_UNLESS(vm, mem != nullptr, "gc: out of memory allocating {} bytes", bytes);
 	return mem;
 }
 

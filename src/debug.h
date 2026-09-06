@@ -18,9 +18,8 @@
 #  include <cstdio>
 #  define JET_LOG(fmt, ...) \
 	do { \
-		std::fprintf(stderr, "%-40s " fmt "\n", \
-		             "[jet " __FILE__ ":" JET_LOG_STRINGIFY(__LINE__) "]", \
-		             ##__VA_ARGS__); \
+		print(stderr, "{:<40} " fmt "\n", \
+		      "[jet " __FILE__ ":" JET_LOG_STRINGIFY(__LINE__) "]" __VA_OPT__(,) __VA_ARGS__); \
 	} while (0)
 #  define JET_LOG_STRINGIFY(x) JET_LOG_STRINGIFY_(x)
 #  define JET_LOG_STRINGIFY_(x) #x

@@ -48,7 +48,7 @@ struct SourceLoc
 		               "compiler: invalid source location");                                             \
 		if (source_loc.line != 0)                                                                        \
 		{                                                                                                \
-			JET_DIE(nullptr, "%s:%d:%d: " fmt, compiler.file_table[source_loc.file_id].c_str(),          \
+			JET_DIE(nullptr, "{}:{}:{}: " fmt, compiler.file_table[source_loc.file_id],          \
 			        source_loc.line, source_loc.col __VA_OPT__(, ) __VA_ARGS__);                         \
 		}                                                                                                \
 		else                                                                                             \
@@ -68,42 +68,64 @@ struct SourceLoc
 
 #define JETC_DIE_UNLESS(db, loc, cond, ...) JETC_DIE_WHEN(db, loc, !(cond), __VA_ARGS__)
 
+#define JET_TOKEN_KINDS(X) \
+	X(LParen) \
+	X(RParen) \
+	X(Quote) \
+	X(Quasiquote) \
+	X(Unquote) \
+	X(UnquoteSplicing) \
+	X(Hash) \
+	X(Number) \
+	X(String) \
+	X(Boolean) \
+	X(Character) \
+	X(Variable) \
+	X(Lambda) \
+	X(Define) \
+	X(If) \
+	X(Set) \
+	X(Setf) \
+	X(QuoteWord) \
+	X(Apply) \
+	X(Let) \
+	X(LetStar) \
+	X(Letrec) \
+	X(LetEc) \
+	X(LetCoro) \
+	X(Begin) \
+	X(When) \
+	X(Unless) \
+	X(Cond) \
+	X(And) \
+	X(Or) \
+	X(Include) \
+	X(Dot) \
+	X(Eof)
+
 enum class TokenKind : uint8_t
 {
-	LParen,
-	RParen,
-	Quote,
-	Quasiquote,
-	Unquote,
-	UnquoteSplicing,
-	Hash,
-	Number,
-	String,
-	Boolean,
-	Character,
-	Variable,
-	Lambda,
-	Define,
-	If,
-	Set,
-	Setf,
-	QuoteWord,
-	Apply,
-	Let,
-	LetStar,
-	Letrec,
-	LetEc,
-	LetCoro,
-	Begin,
-	When,
-	Unless,
-	Cond,
-	And,
-	Or,
-	Include,
-	Dot,
-	Eof,
+#define X(name) name,
+	JET_TOKEN_KINDS(X)
+#undef X
 };
+
+template <>
+struct std::formatter<TokenKind> : std::formatter<std::string_view>
+{
+	std::format_context::iterator format(TokenKind kind, std::format_context& context) const
+	{
+		switch (kind)
+		{
+#define X(name) case TokenKind::name: return std::formatter<std::string_view>::format(#name, context);
+		JET_TOKEN_KINDS(X)
+#undef X
+		}
+		JET_DIE(nullptr, "invalid TokenKind {}", static_cast<unsigned>(kind));
+	}
+};
+
+#undef JET_TOKEN_KINDS
 
 struct Token
 {
@@ -237,33 +259,55 @@ constexpr std::string_view CORO_PRIM = "%coro";
 constexpr std::string_view REF_HOLE_PRIM = "%ref-hole";
 constexpr std::string_view REF_DEFAULT_PRIM = "%ref-default";
 
+#define JET_EXPR_KINDS(X) \
+	X(NumberLit) \
+	X(StringLit) \
+	X(BooleanLit) \
+	X(CharacterLit) \
+	X(SymbolLit) \
+	X(UnknownLit) \
+	X(VarRef) \
+	X(Call) \
+	X(Apply) \
+	X(Lambda) \
+	X(Define) \
+	X(PrimRef) \
+	X(SetBang) \
+	X(SetRef) \
+	X(IterNext) \
+	X(If) \
+	X(Let) \
+	X(Letrec) \
+	X(Begin) \
+	X(When) \
+	X(Unless) \
+	X(Cond) \
+	X(And) \
+	X(Or)
+
 enum class ExprKind : uint8_t
 {
-	NumberLit,
-	StringLit,
-	BooleanLit,
-	CharacterLit,
-	SymbolLit,
-	UnknownLit,
-	VarRef,
-	Call,
-	Apply,
-	Lambda,
-	Define,
-	PrimRef,
-	SetBang,
-	SetRef,
-	IterNext,
-	If,
-	Let,
-	Letrec,
-	Begin,
-	When,
-	Unless,
-	Cond,
-	And,
-	Or,
+#define X(name) name,
+	JET_EXPR_KINDS(X)
+#undef X
 };
+
+template <>
+struct std::formatter<ExprKind> : std::formatter<std::string_view>
+{
+	std::format_context::iterator format(ExprKind kind, std::format_context& context) const
+	{
+		switch (kind)
+		{
+#define X(name) case ExprKind::name: return std::formatter<std::string_view>::format(#name, context);
+		JET_EXPR_KINDS(X)
+#undef X
+		}
+		JET_DIE(nullptr, "invalid ExprKind {}", static_cast<unsigned>(kind));
+	}
+};
+
+#undef JET_EXPR_KINDS
 
 struct Expr
 {
@@ -704,7 +748,7 @@ inline char decode_char_literal(Compiler& db, SourceLoc loc, std::string_view bo
 			return n.value;
 		}
 	}
-	JETC_DIE(db, loc, "unknown character name '#\\%.*s'", static_cast<int>(body.size()), body.data());
+	JETC_DIE(db, loc, "unknown character name '#\\{}'", body);
 }
 
 static std::vector<Token> lex(Compiler& db, IPort* port, uint32_t file_id);
@@ -975,7 +1019,7 @@ namespace
 				return;
 			}
 
-			JETC_DIE(db, loc(), "unexpected character '%c'", c);
+			JETC_DIE(db, loc(), "unexpected character '{:c}'", c);
 		}
 
 		TokenKind classify_ident(std::string_view text)
@@ -1155,15 +1199,14 @@ namespace
 		{
 			if (peek().kind != kind)
 			{
-				JETC_DIE(db, peek().loc, "expected token %d, got %d", static_cast<int>(kind),
-				         static_cast<int>(peek().kind));
+				JETC_DIE(db, peek().loc, "expected token {}, got {}", kind, peek().kind);
 			}
 			advance();
 		}
 
 		std::string_view expect_identifier(const char* what)
 		{
-			JETC_DIE_UNLESS(db, peek().loc, peek().kind == TokenKind::Variable, "expected identifier for %s",
+			JETC_DIE_UNLESS(db, peek().loc, peek().kind == TokenKind::Variable, "expected identifier for {}",
 			                what);
 			return advance().text;
 		}
@@ -1239,7 +1282,7 @@ namespace
 						break;
 					default:
 						JETC_DIE_UNLESS(db, loc, skip_line_continuation(inner, i),
-						                "unknown string escape '\\%c'", inner[i]);
+						                "unknown string escape '\\{:c}'", inner[i]);
 						break;
 				}
 			}
@@ -1262,7 +1305,7 @@ namespace
 			for (size_t at = first; at < end; ++at)
 			{
 				int value = hex_digit_value(inner[at]);
-				JETC_DIE_WHEN(db, loc, value < 0, "'\\x' escape has a non-hex digit '%c'", inner[at]);
+				JETC_DIE_WHEN(db, loc, value < 0, "'\\x' escape has a non-hex digit '{:c}'", inner[at]);
 				code = code * 16 + static_cast<uint32_t>(value);
 				JETC_DIE_WHEN(db, loc, code > 0x10FFFF, "'\\x' escape is above U+10FFFF");
 			}
@@ -1535,7 +1578,7 @@ namespace
 			advance();
 			if (peek().kind != TokenKind::String)
 			{
-				JETC_DIE(db, loc, "%%prim expects a string literal");
+				JETC_DIE(db, loc, "%prim expects a string literal");
 			}
 			std::string_view name = process_string_escapes(loc, advance().text);
 			expect(TokenKind::RParen);
@@ -2026,7 +2069,7 @@ namespace
 			FILE* f = fopen(path.c_str(), "rb");
 			if (!f)
 			{
-				JETC_DIE(db, loc, "cannot open '%.*s'", static_cast<int>(path.size()), path.data());
+				JETC_DIE(db, loc, "cannot open '{}'", path);
 			}
 			std::string source;
 			char read_buf[4096];
@@ -2074,9 +2117,7 @@ namespace
 		Expr* make_number_lit(SourceLoc loc, int value)
 		{
 			Expr* e = make_expr(loc, ExprKind::NumberLit);
-			char buf[16];
-			snprintf(buf, sizeof(buf), "%d", value);
-			e->number_lit.text = db.arena.copy_string(buf);
+			e->number_lit.text = db.arena.copy_string(std::format("{}", value));
 			return e;
 		}
 
@@ -2380,7 +2421,7 @@ namespace
 			Expr* tail = nullptr;
 			parse_items(depth, items, tail);
 			expect(TokenKind::RParen);
-			JETC_DIE_UNLESS(db, loc, !tail, "dotted tail in a %s literal", form->constructor);
+			JETC_DIE_UNLESS(db, loc, !tail, "dotted tail in a {} literal", form->constructor);
 
 			if (has_splice(items))
 			{
@@ -2396,7 +2437,7 @@ namespace
 					db,
 					loc,
 					items.size() % 2 == 0,
-					"%s literal needs an even number of elements",
+					"{} literal needs an even number of elements",
 					form->constructor
 					);
 			}
@@ -2652,8 +2693,7 @@ static void walk_children(Compiler& db, Expr* expr, F&& f)
 			break;
 
 		default:
-			JETC_DIE(db, expr->loc, "walk_children: unhandled ExprKind %d (not ANF?)",
-			         static_cast<int>(expr->kind));
+			JETC_DIE(db, expr->loc, "walk_children: unhandled ExprKind {} (not ANF?)", expr->kind);
 	}
 }
 
@@ -2925,8 +2965,9 @@ std::string_view Compiler::gensym()
 	char* buf = static_cast<char*>(arena.alloc_raw(max, 1));
 	// The embedded space cannot appear inside a lexed identifier, so a user
 	// binding can never collide with a temp.
-	int n = snprintf(buf, max, "%%t %u", gensym_counter_++);
-	return {buf, static_cast<size_t>(n)};
+	char* end = std::format_to(buf, "%t {}", gensym_counter_++);
+	*end = '\0';
+	return {buf, static_cast<size_t>(end - buf)};
 }
 
 // ANF hoist temps are single-use by construction.
@@ -3085,8 +3126,7 @@ Expr* Compiler::compute_anf(Expr* expr)
 		}
 
 		default:
-			JETC_DIE(*this, expr->loc, "anf: unhandled ExprKind %d (surface form not expanded?)",
-			         static_cast<int>(expr->kind));
+			JETC_DIE(*this, expr->loc, "anf: unhandled ExprKind {} (surface form not expanded?)", expr->kind);
 	}
 }
 
@@ -3116,8 +3156,8 @@ void Compiler::verify_anf(Expr* expr)
 			*this,
 			e->loc,
 			is_anf_atom(e),
-			"anf: non-atomic operand (kind %d)",
-			static_cast<int>(e->kind)
+			"anf: non-atomic operand (kind {})",
+			e->kind
 			);
 		verify_anf(e);
 	};
@@ -3371,8 +3411,7 @@ void Compiler::compute_binding_addresses_in(Expr* expr)
 			std::optional<ResolvedBinding> found = lookup_name(expr->var_ref.name);
 			if (!found)
 			{
-				JETC_DIE(*this, expr->loc, "unresolved variable '%.*s'",
-				         static_cast<int>(expr->var_ref.name.size()), expr->var_ref.name.data());
+				JETC_DIE(*this, expr->loc, "unresolved variable '{}'", expr->var_ref.name);
 			}
 			bindings_[expr->id] = *found;
 			break;
@@ -3489,8 +3528,7 @@ void Compiler::compute_binding_addresses_in(Expr* expr)
 			std::optional<ResolvedBinding> found = lookup_name(expr->set_bang.name);
 			if (!found)
 			{
-				JETC_DIE(*this, expr->loc, "unresolved variable '%.*s' in set!",
-				         static_cast<int>(expr->set_bang.name.size()), expr->set_bang.name.data());
+				JETC_DIE(*this, expr->loc, "unresolved variable '{}' in set!", expr->set_bang.name);
 			}
 			bindings_[expr->id] = *found;
 			break;
@@ -3645,7 +3683,7 @@ namespace
 			db,
 			loc,
 			v > std::numeric_limits<T>::max(),
-			"codegen: value %zu overflows a narrower field",
+			"codegen: value {} overflows a narrower field",
 			v
 			);
 		return static_cast<T>(v);
@@ -3890,9 +3928,8 @@ void Compiler::select_call_op(Expr* expr, Expr* current)
 			*this,
 			expr->loc,
 			expr->call.args.size() == 1,
-			"%.*s expects exactly one argument",
-			static_cast<int>(RESET_PRIM.size()),
-			RESET_PRIM.data()
+			"{} expects exactly one argument",
+			RESET_PRIM
 			);
 		sel.op = Opcode::reset;
 		return;
@@ -3904,9 +3941,8 @@ void Compiler::select_call_op(Expr* expr, Expr* current)
 			*this,
 			expr->loc,
 			expr->call.args.size() == 1,
-			"%.*s expects exactly one argument",
-			static_cast<int>(CORO_PRIM.size()),
-			CORO_PRIM.data()
+			"{} expects exactly one argument",
+			CORO_PRIM
 			);
 		sel.op = Opcode::coro;
 		return;
@@ -4143,9 +4179,8 @@ void Compiler::select_var_op(Expr* expr, Expr* current, bool is_set)
 		*this,
 		expr->loc,
 		found,
-		"select-pass: ref to non-local without upvalue entry: '%.*s'",
-		static_cast<int>(name.size()),
-		name.data()
+		"select-pass: ref to non-local without upvalue entry: '{}'",
+		name
 		);
 	sel.op = is_set ? Opcode::stu : (slot ? Opcode::ldus : Opcode::ldu);
 	sel.u.var.addr = *found;
@@ -4417,8 +4452,7 @@ namespace
 					break;
 				}
 				default:
-					JETC_DIE(db, orig->loc, "anf-inline: unhandled ExprKind %d in clone",
-					         static_cast<int>(orig->kind));
+					JETC_DIE(db, orig->loc, "anf-inline: unhandled ExprKind {} in clone", orig->kind);
 			}
 			return e;
 		}
@@ -4559,8 +4593,7 @@ namespace
 				}
 
 				default:
-					JETC_DIE(db, expr->loc, "anf-inline: unhandled ExprKind %d",
-					         static_cast<int>(expr->kind));
+					JETC_DIE(db, expr->loc, "anf-inline: unhandled ExprKind {}", expr->kind);
 			}
 		}
 	};
@@ -5153,7 +5186,7 @@ namespace
 			}
 			used.push_back(true);
 			constexpr size_t reg_limit = std::numeric_limits<uint16_t>::max();
-			JETC_DIE_WHEN(db, loc, L.frame_regs() > reg_limit, "codegen: frame exceeds %zu registers",
+			JETC_DIE_WHEN(db, loc, L.frame_regs() > reg_limit, "codegen: frame exceeds {} registers",
 			              reg_limit);
 			return narrow_or_die<uint16_t>(db, loc, L.reg_floor + used.size() - 1);
 		}
@@ -5191,7 +5224,7 @@ namespace
 				used[i] = true;
 			}
 			constexpr size_t reg_limit = std::numeric_limits<uint16_t>::max();
-			JETC_DIE_WHEN(db, loc, L.frame_regs() > reg_limit, "codegen: frame exceeds %zu registers",
+			JETC_DIE_WHEN(db, loc, L.frame_regs() > reg_limit, "codegen: frame exceeds {} registers",
 			              reg_limit);
 			return narrow_or_die<uint16_t>(db, loc, L.reg_floor + top);
 		}
@@ -5200,9 +5233,9 @@ namespace
 		{
 			LirLambda& L = current_lambda();
 			size_t slot = reg - L.reg_floor;
-			JETC_DIE_WHEN(db, L.loc, slot >= L.reg_used.size(), "codegen: release of unallocated register %d",
+			JETC_DIE_WHEN(db, L.loc, slot >= L.reg_used.size(), "codegen: release of unallocated register {}",
 			              reg);
-			JETC_DIE_WHEN(db, L.loc, !L.reg_used[slot], "codegen: double release of register %d", reg);
+			JETC_DIE_WHEN(db, L.loc, !L.reg_used[slot], "codegen: double release of register {}", reg);
 			L.reg_used[slot] = false;
 		}
 
@@ -5363,8 +5396,7 @@ namespace
 				case ExprKind::StringLit:
 					return intern_text(e->loc, e->string_lit.value);
 				default:
-					JETC_DIE(db, e->loc, "intern_literal_key: not a literal Expr (kind %d)",
-					         static_cast<int>(e->kind));
+					JETC_DIE(db, e->loc, "intern_literal_key: not a literal Expr (kind {})", e->kind);
 			}
 		}
 
@@ -5515,7 +5547,7 @@ namespace
 
 		Compiler::OpSelection selection(Expr* expr, const char* what)
 		{
-			JETC_DIE_WHEN(db, expr->loc, !db.selected_ops_[expr->id], "codegen: %s without selection", what);
+			JETC_DIE_WHEN(db, expr->loc, !db.selected_ops_[expr->id], "codegen: {} without selection", what);
 			Compiler::OpSelection sel = *db.selected_ops_[expr->id];
 			// Single read point for selections: these payloads name an unboxed
 			// local register (for ldu/stu/ldus the same field holds an upvalue
@@ -5557,8 +5589,7 @@ namespace
 					return v;
 				}
 				default:
-					JETC_DIE(db, expr->loc, "codegen: unexpected set! selection %d",
-					         static_cast<int>(sel.op));
+					JETC_DIE(db, expr->loc, "codegen: unexpected set! selection {}", sel.op);
 			}
 		}
 
@@ -5720,7 +5751,7 @@ namespace
 					{
 						uint32_t uses = db.binding_use_count(expr->let.owner, breadth);
 						JETC_DIE_WHEN(db, expr->loc, uses != 1,
-						              "codegen: sunk temporary has %u uses, expected exactly 1", uses);
+						              "codegen: sunk temporary has {} uses, expected exactly 1", uses);
 						current_lambda().phys_home[breadth] = *target;
 						emit_to_reg(val, *target);
 						continue;
@@ -5899,8 +5930,7 @@ namespace
 					i.u.call.callee = *callee_temp;
 					break;
 				default:
-					JETC_DIE(db, expr->loc, "codegen: unexpected Call selection %d",
-					         static_cast<int>(sel.op));
+					JETC_DIE(db, expr->loc, "codegen: unexpected Call selection {}", sel.op);
 			}
 
 			uint16_t w = claim_call_window(expr, nargs);
@@ -6171,8 +6201,7 @@ namespace
 							emit_load(expr->loc, sel.op, dst, sel.u.var.addr);
 							break;
 						default:
-							JETC_DIE(db, expr->loc, "codegen: unexpected var selection %d",
-							         static_cast<int>(sel.op));
+							JETC_DIE(db, expr->loc, "codegen: unexpected var selection {}", sel.op);
 					}
 					break;
 				}
@@ -6331,8 +6360,7 @@ namespace
 				}
 
 				default:
-					JETC_DIE(db, expr->loc, "codegen: unhandled ExprKind %d (not ANF?)",
-					         static_cast<int>(expr->kind));
+					JETC_DIE(db, expr->loc, "codegen: unhandled ExprKind {} (not ANF?)", expr->kind);
 			}
 		}
 	};
@@ -6396,7 +6424,7 @@ namespace
 					db,
 					SourceLoc::none(),
 					file < db.file_table.size(),
-					"codegen: unknown source file id %u",
+					"codegen: unknown source file id {}",
 					file
 					);
 				file_ids.push_back(file);
@@ -6450,7 +6478,7 @@ namespace
 		size_t label_target(SourceLoc loc, std::unordered_map<uint32_t, size_t>& label_pos, uint32_t id)
 		{
 			auto it = label_pos.find(id);
-			JETC_DIE_WHEN(db, loc, it == label_pos.end(), "lir emit: unresolved label %u", id);
+			JETC_DIE_WHEN(db, loc, it == label_pos.end(), "lir emit: unresolved label {}", id);
 			return it->second;
 		}
 
@@ -6899,7 +6927,7 @@ namespace
 				}
 
 				default:
-					JETC_DIE(db, i.loc, "lir emit: unexpected opcode %d", static_cast<int>(i.op));
+					JETC_DIE(db, i.loc, "lir emit: unexpected opcode {}", i.op);
 			}
 		}
 
@@ -7024,9 +7052,8 @@ namespace
 					JET_DIE_UNLESS(
 						&s,
 						bound_type,
-						"read: '%.*s' is unbound",
-						static_cast<int>(name.size()),
-						name.data()
+						"read: '{}' is unbound",
+						name
 						);
 					std::vector<Atom> args;
 					args.reserve(e->call.args.size());
@@ -7040,7 +7067,7 @@ namespace
 				JET_DIE(&s, "datum_to_atom: unexpected call proc");
 			}
 			default:
-				JET_DIE(&s, "datum_to_atom: unexpected ExprKind %d", static_cast<int>(e->kind));
+				JET_DIE(&s, "datum_to_atom: unexpected ExprKind {}", e->kind);
 		}
 	}
 

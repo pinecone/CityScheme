@@ -11,7 +11,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <cstdint>
-#include <inttypes.h>
 #include <new>
 #include <string>
 #include <string_view>
@@ -66,6 +65,23 @@ namespace jet
 		TypeMax,
 	};
 } // namespace jet
+
+template <>
+struct std::formatter<jet::Type> : std::formatter<std::string_view>
+{
+	std::format_context::iterator format(jet::Type type, std::format_context& context) const
+	{
+		switch (type)
+		{
+#define X(name, text) case jet::Type::name: return std::formatter<std::string_view>::format(#name, context);
+		JET_ALL_TYPES(X)
+#undef X
+			case jet::Type::TypeMax:
+				break;
+		}
+		JET_DIE(nullptr, "invalid jet::Type {}", static_cast<unsigned>(type));
+	}
+};
 
 using Character = uint8_t;
 using String = std::string;
@@ -128,7 +144,7 @@ struct Number
 	{
 #ifdef JET_DEBUG
 		uint64_t canon = std::bit_cast<uint64_t>(from_ieee(value).value);
-		JET_DIE_UNLESS(nullptr, std::bit_cast<uint64_t>(value) == canon, "non-canonical number %g", value);
+		JET_DIE_UNLESS(nullptr, std::bit_cast<uint64_t>(value) == canon, "non-canonical number {}", value);
 #endif
 		return Number{value};
 	}
