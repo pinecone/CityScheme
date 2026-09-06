@@ -1742,6 +1742,7 @@
 
 ;; WL_PLAY.C:613-833.
 (define (CheckKeys)
+  (plus-check-keys)
   (unless (or screenfaded demoplayback demo-session)
     (when (and (ref Keyboard sc_M) (ref Keyboard sc_L) (ref Keyboard sc_I))
       (set! health 100)
