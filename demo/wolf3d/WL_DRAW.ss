@@ -207,14 +207,29 @@
 (define TickBase 70)
 (define MAXTICS 10)
 (define lasttimecount 0)
+(define clock-time (truncate (* (time-monotonic) TickBase)))
 (define frameon 0)
 (define fizzlein #f)
 
+(define (update-clock)
+  (let ((now (truncate (* (time-monotonic) TickBase))))
+    (set! TimeCount (+ TimeCount (- now clock-time)))
+    (set! clock-time now)))
+
 (define (CalcTics)
-  (let* ((newtime (* (time-monotonic) TickBase))
-         (elapsed (truncate (- newtime lasttimecount))))
-    (set! tics (max 1 (min elapsed MAXTICS)))
-    (set! lasttimecount newtime)))
+  (update-clock)
+  (when (> lasttimecount TimeCount)
+    (set! TimeCount lasttimecount))
+  (let wait ()
+    (set! tics (- TimeCount lasttimecount))
+    (when (= tics 0)
+      (IN_Yield)
+      (update-clock)
+      (wait)))
+  (set! lasttimecount TimeCount)
+  (when (> tics MAXTICS)
+    (set! TimeCount (- TimeCount (- tics MAXTICS)))
+    (set! tics MAXTICS)))
 
 ;; WL_DRAW.C: FixOfs restores the displayed view into the draw page before
 ;; incremental drawing.  Page offsets become explicit source/destination RAM.

@@ -74,8 +74,7 @@
   (let ((frame-start (time-monotonic)))
     (IN_PollKeyboard)
     (unless demo-session
-      (CalcTics)
-      (set! TimeCount (+ TimeCount tics))
+      (update-clock)
       (SD_Service))
     (coro/next game #f)
     ;; The host presents the current visible linear RAM image.  The explicit
