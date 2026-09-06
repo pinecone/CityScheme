@@ -15,6 +15,7 @@
 ($check (eq? nan (asin 2)))
 ($check (eq? nan (acos 2)))
 ($check (eq? nan (string->number "nan")))
+($check (eq? nan (truncate nan)))
 
 ;; NaN is equal to itself under every predicate.
 ($check (eq? nan nan))
@@ -45,6 +46,20 @@
 ($check (eq? 0 (/ -1 inf)))
 ($check (eq? 0 (round -0.4)))
 ($check (eq? 0 (truncate -0.5)))
+($check (eq? 0 (truncate 0.5)))
+($check (eq? 0 (truncate 0)))
+($check (eq? 0 (truncate 5e-324)))
+($check (eq? 0 (truncate -5e-324)))
+($check (eq? 0 (truncate 0.9999999999999999)))
+($check (eq? 0 (truncate -0.9999999999999999)))
+($check (eq? 1 (truncate 1.0000000000000002)))
+($check (eq? -1 (truncate -1.0000000000000002)))
+($check (eq? 4503599627370495 (truncate 4503599627370495.5)))
+($check (eq? -4503599627370495 (truncate -4503599627370495.5)))
+($check (eq? 4503599627370496 (truncate 4503599627370496)))
+($check (eq? -4503599627370496 (truncate -4503599627370496)))
+($check (eq? 1.7976931348623157e308 (truncate 1.7976931348623157e308)))
+($check (eq? -1.7976931348623157e308 (truncate -1.7976931348623157e308)))
 ($check (eq? 0 (ceiling -0.5)))
 ($check (eq? 0 (string->number "-0.0")))
 ($check (eq? inf (/ 1 (* -1.0 0.0))))
@@ -57,6 +72,8 @@
 
 ;; Infinities keep their sign and identity.
 ($check (eq? inf (+ inf inf)))
+($check (eq? inf (truncate inf)))
+($check (eq? (- inf) (truncate (- inf))))
 ($check (eq? (- inf) (- 0 inf)))
 ($check (exact? inf))
 ($check (integer? inf))

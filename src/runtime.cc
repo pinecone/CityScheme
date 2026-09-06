@@ -256,6 +256,11 @@ static bool jet_is_integer(VmState& s, double x)
 	return jet_is_exact(s, x);
 }
 
+static Atom jet_truncate(VmState& state, Atom* first, Atom*)
+{
+	return box(truncate_number(slow_unbox<Number>(state, *first)));
+}
+
 static double jet_quotient(VmState& s, double a, double b)
 {
 	JET_DIE_UNLESS(&s, b != 0, "quotient: division by zero");
@@ -306,7 +311,7 @@ void init_number(VmState& s)
 
 	e.bind("floor", make_prim<arith_unary_fun<double, ::floor>>(s, exactly(1)));
 	e.bind("ceiling", make_prim<arith_unary_fun<double, ::ceil>>(s, exactly(1)));
-	e.bind("truncate", make_prim<arith_unary_fun<double, ::trunc>>(s, exactly(1)));
+	e.bind("truncate", make_prim<jet_truncate>(s, exactly(1)));
 	e.bind("round", make_prim<arith_unary_fun<double, ::round>>(s, exactly(1)));
 	e.bind("sqrt", make_prim<arith_unary_fun<double, ::sqrt>>(s, exactly(1)));
 	e.bind("expt", make_prim<arith_binary_fun<double, ::pow>>(s, exactly(2)));

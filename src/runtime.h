@@ -1384,6 +1384,24 @@ Atom arith_nullary_fun(VmState&, Atom*, Atom*)
 	return box(Number::trusted(static_cast<double>(op())));
 }
 
+JET_ALWAYS_INLINE inline Number truncate_number(double value)
+{
+	uint64_t bits{std::bit_cast<uint64_t>(value)};
+	uint64_t exponent{(bits >> 52) & 2047};
+
+	if (exponent < 1023) [[unlikely]]
+	{
+		return Number::trusted(0.0);
+	}
+	if (exponent >= 1075) [[unlikely]]
+	{
+		return Number::trusted(value);
+	}
+
+	bits &= ~((uint64_t{1} << (1075 - exponent)) - 1);
+	return Number::trusted(std::bit_cast<double>(bits));
+}
+
 template <typename T, T (*op)(T)>
 Atom arith_unary_fun(VmState& s, Atom* first, Atom*)
 {

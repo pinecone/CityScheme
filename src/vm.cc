@@ -1492,6 +1492,14 @@ JET_PRESERVE_NONE static void op_mov(VM_OP_PARAMS)
 	DISPATCH();
 }
 
+JET_PRESERVE_NONE static void op_trunc(VM_OP_PARAMS)
+{
+	OP_trunc* operands{reinterpret_cast<OP_trunc*>(pc)};
+	pc += sizeof(*operands);
+	frame_regs[operands->dst] = box(truncate_number(slow_unbox<Number>(s, frame_regs[operands->src])));
+	DISPATCH();
+}
+
 JET_PRESERVE_NONE static void op_mov2(VM_OP_PARAMS)
 {
 	OP_mov2* op = reinterpret_cast<OP_mov2*>(pc);

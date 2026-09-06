@@ -48,13 +48,13 @@ def check(report):
 
 with tempfile.TemporaryDirectory() as directory:
     source = Path(directory) / "profile.ss"
-    source.write_text("""(define truncate (%prim "truncate"))
-(define alias truncate)
+    source.write_text("""(define sample (%prim "truncate"))
+(define alias sample)
 (define = (%prim "="))
 (define - (%prim "-"))
 (define (loop count)
   (if (= count 0) 0
-      (begin (truncate count) (alias count) (loop (- count 1)))))
+      (begin (sample count) (alias count) (loop (- count 1)))))
 (loop 10)
 """)
     options = ["--no-prelude", "--no-inline", "--no-lift-lambdas", str(source)]

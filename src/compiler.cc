@@ -625,7 +625,7 @@ struct Compiler
 	bool prim_binding_lowerable(ResolvedBinding b, std::string_view prim);
 	struct PrimLowering
 	{
-		enum class Kind { None, Arith, Ref };
+		enum class Kind { None, Unary, Arith, Ref };
 		Kind kind{};
 		Opcode op{};
 		Opcode op_k{};
@@ -3823,11 +3823,19 @@ Compiler::PrimLowering Compiler::prim_call_lowering(Expr* call)
 		}
 		return {};
 	}
-	if (proc->kind != ExprKind::VarRef || call->call.args.size() != 2)
+	if (proc->kind != ExprKind::VarRef)
 	{
 		return {};
 	}
 	std::string_view name = proc->var_ref.name;
+	if (name == "truncate" && call->call.args.size() == 1 && prim_binding_lowerable(binding(proc), name))
+	{
+		return {PrimLowering::Kind::Unary, Opcode::trunc};
+	}
+	if (call->call.args.size() != 2)
+	{
+		return {};
+	}
 	std::optional<Opcode> arith = binary_arith_opcode(name);
 	if (!arith && name != "ref")
 	{
@@ -3923,6 +3931,11 @@ void Compiler::select_call_op(Expr* expr, Expr* current)
 	ResolvedBinding proc_binding = binding(proc);
 
 	PrimLowering pl = prim_call_lowering(expr);
+	if (pl.kind == PrimLowering::Kind::Unary)
+	{
+		sel.op = pl.op;
+		return;
+	}
 
 	// Two-arg arithmetic: rr, or rk when the rhs is a number literal.
 	if (pl.kind == PrimLowering::Kind::Arith)
@@ -5030,6 +5043,7 @@ namespace
 		union
 		{
 			struct { uint16_t dst; uint16_t src; } mov;              // mov
+			OP_trunc unary;
 			struct { uint16_t dst0; uint16_t src0; uint16_t dst1; uint16_t src1; } mov2;
 			struct { uint16_t dst; uint16_t idx; } load;             // ldk ldu ldus ldd
 			struct { uint16_t idx; uint16_t src; } store;            // stu std
@@ -6168,6 +6182,15 @@ namespace
 					Compiler::OpSelection sel = selection(expr, "Call");
 					switch (sel.op)
 					{
+						case Opcode::trunc:
+						{
+							LirInst instruction{inst(sel.op)};
+							instruction.u.unary = {dst, emit_to_any_reg(expr->call.args[0])};
+							emit(expr->loc, instruction);
+							release_if_temp(instruction.u.unary.src);
+							break;
+						}
+
 						case Opcode::add:
 						case Opcode::sub:
 						case Opcode::mul:
@@ -6523,6 +6546,11 @@ namespace
 			switch (i.op)
 			{
 				case Opcode::label:
+					break;
+
+				case Opcode::trunc:
+					emit_opcode(bc, i.op);
+					emit_operand(bc, i.u.unary);
 					break;
 
 				case Opcode::mov:

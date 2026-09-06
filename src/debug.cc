@@ -641,6 +641,7 @@ void decode_args(FILE* out, uint8_t op, Code* p)
 			std::fprintf(out, " size=%zu", reinterpret_cast<OP_skip*>(p)->size);
 			break;
 		case Opcode::mov:
+		case Opcode::trunc:
 		{
 			OP_mov* o = reinterpret_cast<OP_mov*>(p);
 			std::fprintf(out, " dst=%u src=%u", o->dst, o->src);

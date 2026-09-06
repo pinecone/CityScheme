@@ -84,7 +84,8 @@ struct Struct;
 	X(coro,                "coro")                                                                           \
 	X(retc,            "retc")                                                                          \
 	X(retu,       "retu")                                                                          \
-	X(return_to_host,      "rethost")
+	X(return_to_host,      "rethost") \
+	X(trunc,               "trunc")
 
 enum class Opcode : uint8_t
 {
@@ -130,6 +131,7 @@ struct OP_mov
 	uint16_t dst;
 	uint16_t src;
 };
+using OP_trunc = OP_mov;
 struct OP_mov2
 {
 	OP_mov first;
@@ -325,6 +327,7 @@ inline size_t opcode_step(uint8_t op, const uint8_t* operands)
 		case Opcode::skip:
 			return OPCODE_SIZE + sizeof(OP_skip);
 		case Opcode::mov:
+		case Opcode::trunc:
 			return OPCODE_SIZE + sizeof(OP_mov);
 		case Opcode::mov2:
 			return OPCODE_SIZE + sizeof(OP_mov2);
