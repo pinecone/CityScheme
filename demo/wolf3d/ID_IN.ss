@@ -41,6 +41,7 @@
 (define sc_D 32)
 (define sc_I 23)
 (define sc_L 38)
+(define sc_O 24)
 (define sc_P 25)
 (define sc_B 48)
 (define sc_C 46)

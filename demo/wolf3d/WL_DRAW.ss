@@ -372,7 +372,7 @@
             (when (and (>= top 0) (< bottom viewheight))
               (let ((shade (plus-ao (plus-light-level level (bitwise-and (arithmetic-shift xf -16) 63)
                                                           (bitwise-and (arithmetic-shift yf -16) 63))
-                                   xf yf)))
+                                   xf yf (= height (ref plus-boundaries x)))))
                 (setf! framebuffer (+ (* (+ viewtop top) screenwidth) viewleft x)
                        (ref shade (ref plane-ceiling tex)))
                 (setf! framebuffer (+ (* (+ viewtop bottom) screenwidth) viewleft x)
