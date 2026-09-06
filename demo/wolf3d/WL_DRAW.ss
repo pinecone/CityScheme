@@ -644,6 +644,7 @@
   (set! viscount 0)
   (place-statics)
   (place-actors)
+  (plus-draw-shadows)
   (let draw ((drawn 0))
     (when (< drawn viscount)
       (let pick ((index 0) (least 32000) (farthest 0))

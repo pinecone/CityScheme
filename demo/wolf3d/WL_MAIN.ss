@@ -215,6 +215,7 @@
   (VL_Startup)
   (IN_Startup)
   (PM_Startup)
+  (plus-startup)
   (unless demo-session (SD_Startup))
   (CA_Startup)
   (unless demo-session
