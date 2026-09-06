@@ -426,6 +426,7 @@
         (texture (bitwise-and (arithmetic-shift yintercept -4) 4032)))
     (let* ((column (quotient (if (= xtilestep -1) (- 4032 texture) texture) 64))
            (height (CalcHeight hitx yintercept))
+           (page (vertpage tile xtile yinttile xtilestep))
            (same-wall (and last-vertical-wall
                            (= last-vertical-xtile xtile)
                            (= last-vertical-tile tile)
@@ -438,8 +439,9 @@
       (set! last-vertical-xtile xtile)
       (set! last-vertical-tile tile)
       (set! last-vertical-texture texture)
-      (ScalePost pixx (ref wallheight pixx) (vertpage tile xtile yinttile xtilestep) column
-                 (- xtile xtilestep) yinttile))))
+      (ScalePost pixx (ref wallheight pixx) page column (- xtile xtilestep) yinttile)
+      (when (= page (+ (doorwall) 3))
+        (plus-door-edge pixx (ref wallheight pixx))))))
 
 (define (HitHorizWall pixx tile xinttile ytile ytilestep xintercept)
   (set! last-vertical-wall #f)
@@ -447,6 +449,7 @@
         (texture (bitwise-and (arithmetic-shift xintercept -4) 4032)))
     (let* ((column (quotient (if (= ytilestep -1) (- 4032 texture) texture) 64))
            (height (CalcHeight xintercept hity))
+           (page (horizpage tile xinttile ytile ytilestep))
            (same-wall (and last-horizontal-wall
                            (= last-horizontal-ytile ytile)
                            (= last-horizontal-tile tile)
@@ -458,8 +461,9 @@
       (set! last-horizontal-ytile ytile)
       (set! last-horizontal-tile tile)
       (set! last-horizontal-texture texture)
-      (ScalePost pixx (ref wallheight pixx) (horizpage tile xinttile ytile ytilestep) column
-                 xinttile (- ytile ytilestep)))))
+      (ScalePost pixx (ref wallheight pixx) page column xinttile (- ytile ytilestep))
+      (when (= page (+ (doorwall) 2))
+        (plus-door-edge pixx (ref wallheight pixx))))))
 
 (define (HitHorizDoor pixx door xmid ytile)
   (set! last-vertical-wall #f)
@@ -475,7 +479,8 @@
       (set! last-door-number door)
       (set! last-door-texture texture)
       (ScalePost pixx (ref wallheight pixx) (doorpage (ref doorlock door) #f) column
-                 (ref doortilex door) ytile))))
+                 (ref doortilex door) ytile)
+      (plus-door-edge pixx (ref wallheight pixx)))))
 
 (define (HitVertDoor pixx door ymid xtile)
   (set! last-vertical-wall #f)
@@ -491,7 +496,8 @@
       (set! last-door-number door)
       (set! last-door-texture texture)
       (ScalePost pixx (ref wallheight pixx) (doorpage (ref doorlock door) #t) column
-                 xtile (ref doortiley door)))))
+                 xtile (ref doortiley door))
+      (plus-door-edge pixx (ref wallheight pixx)))))
 
 (define (HitHorizPWall pixx tile xmid ytile ytilestep)
   (set! last-vertical-wall #f)
