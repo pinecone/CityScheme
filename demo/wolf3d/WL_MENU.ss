@@ -207,10 +207,10 @@
 (define (WaitKeyUp)
   (let wait ()
     (ReadAnyControl)
-    (when (or in-button0 in-button1 in-button2 in-button3
-              (ref Keyboard sc_Space) (ref Keyboard sc_Enter) (ref Keyboard sc_Escape))
-      (when (IN_Yield)
-        (wait)))))
+    (when (and (or in-button0 in-button1 in-button2 in-button3
+                   (ref Keyboard sc_Space) (ref Keyboard sc_Enter) (ref Keyboard sc_Escape))
+               (IN_Yield))
+      (wait))))
 
 (define SoundStatus 0)
 
@@ -227,9 +227,8 @@
   (set! TimeCount 0)
   (let delay ()
     (IN_ReadControl 0)
-    (when (and (< TimeCount count) (not (= in-dir dir_None)))
-      (when (IN_Yield)
-        (delay)))))
+    (when (and (< TimeCount count) (not (= in-dir dir_None)) (IN_Yield))
+      (delay))))
 
 ;; WL_MENU.C:3423-3448
 (define (DrawMenu items active text)
@@ -261,9 +260,8 @@
   (SD_PlaySound MOVEGUN1SND)
   (set! TimeCount 0)
   (let wait ()
-    (when (< TimeCount 8)
-      (when (IN_Yield)
-        (wait)))))
+    (when (and (< TimeCount 8) (IN_Yield))
+      (wait))))
 
 ;; WL_MENU.C:3381-3405
 (define (DrawGun items active text x y which basey routine)

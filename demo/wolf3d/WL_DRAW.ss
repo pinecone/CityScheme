@@ -286,11 +286,11 @@
 (define ypartialdown 0)
 
 (define (CalcHeight xintercept yintercept)
-  (let ((gx (- xintercept viewx))
-        (gy (- yintercept viewy)))
-    (let ((nx (- (FixedByFrac gx viewcos) (FixedByFrac gy viewsin))))
-      (let ((dist (if (< nx MINDIST) MINDIST nx)))
-        (truncate (/ heightnumerator (truncate (/ dist 256))))))))
+  (let* ((gx (- xintercept viewx))
+         (gy (- yintercept viewy))
+         (nx (- (FixedByFrac gx viewcos) (FixedByFrac gy viewsin)))
+         (dist (max nx MINDIST)))
+    (truncate (/ heightnumerator (truncate (/ dist 256))))))
 
 (define maxscale 0)
 (define stepbytwo 0)

@@ -470,24 +470,24 @@
 ;; ID_IN.C:832-841
 (define (IN_WaitForKey)
   (let wait ()
-    (cond ((not (= LastScan sc_None))
+    (cond ((= LastScan sc_None)
+           (IN_Yield)
+           (wait))
+          (else
            (let ((result LastScan))
              (set! LastScan sc_None)
-             result))
-          (else
-           (IN_Yield)
-           (wait)))))
+             result)))))
 
 ;; ID_IN.C:851-859
 (define (IN_WaitForASCII)
   (let wait ()
-    (cond ((not (= LastASCII key_None))
+    (cond ((= LastASCII key_None)
+           (IN_Yield)
+           (wait))
+          (else
            (let ((result LastASCII))
              (set! LastASCII key_None)
-             result))
-          (else
-           (IN_Yield)
-           (wait)))))
+             result)))))
 
 ;; ID_IN.C:825-838, keyboard only
 (define (IN_StartAck)
