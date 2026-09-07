@@ -264,8 +264,20 @@
       (setf! pcSoundLookup index (* index 60))
       (loop (+ index 1)))))
 
+(define (sound-samples data length)
+  (if plus-enabled
+      (let ((samples (make-bytevector length PCSILENCE)))
+        (let copy ((index 0))
+          (when (< index length)
+            (setf! samples index (+ PCSILENCE (quotient (- (ref data index) PCSILENCE) 2)))
+            (copy (+ index 1))))
+        samples)
+      (bytevector-copy data 0 length)))
+
 (define (pc-render data length)
   (let* ((persample (truncate (/ PCRATE PCSERVICERATE)))
+         (high (if plus-enabled (+ PCSILENCE (quotient (- PCHIGH PCSILENCE) 2)) PCHIGH))
+         (low (if plus-enabled (+ PCSILENCE (quotient (- PCLOW PCSILENCE) 2)) PCLOW))
          (pcm (make-bytevector (* length persample) PCSILENCE)))
     (let ticks ((tick 0) (out 0) (phase 0))
       (if (= tick length)
@@ -279,7 +291,7 @@
                         (ticks (+ tick 1) (+ out persample) turn)
                         (let* ((moved (+ turn step))
                                (fraction (- moved (truncate moved))))
-                          (setf! pcm (+ out offset) (if (< fraction 0.5) PCHIGH PCLOW))
+                          (setf! pcm (+ out offset) (if (< fraction 0.5) high low))
                           (emit (+ offset 1) fraction)))))))))))
 
 (define (sound-chunk sound)
@@ -346,7 +358,7 @@
   (dos:stop-sound 'digi))
 
 (define (SDL_SBPlaySeg data length)
-  (dos:play-sound 'digi (bytevector-copy data 0 length) DIGIHERTZ)
+  (dos:play-sound 'digi (sound-samples data length) DIGIHERTZ)
   length)
 
 (define (SDL_SBService)
@@ -390,7 +402,7 @@
 
 (define (SDL_SSPlaySample data length)
   (set! ssSample data)
-  (dos:play-sound 'digi (bytevector-copy data 0 length) DIGIHERTZ))
+  (dos:play-sound 'digi (sound-samples data length) DIGIHERTZ))
 
 (define (SDL_StartSS)
   #f)

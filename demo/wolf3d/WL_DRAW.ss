@@ -370,8 +370,7 @@
                  (tex (+ (arithmetic-shift (bitwise-and yf #x3f0000) -10)
                          (arithmetic-shift (bitwise-and xf #x3f0000) -16))))
             (when (and (>= top 0) (< bottom viewheight))
-              (let ((shade (plus-ao (plus-light-level level (bitwise-and (arithmetic-shift xf -16) 63)
-                                                          (bitwise-and (arithmetic-shift yf -16) 63))
+              (let ((shade (plus-ao (plus-light-level level xf yf)
                                    xf yf (= height (ref plus-boundaries x)))))
                 (setf! framebuffer (+ (* (+ viewtop top) screenwidth) viewleft x)
                        (ref shade (ref plane-ceiling tex)))
@@ -380,6 +379,8 @@
         (columns (+ x 1))))))
 
 (define (DrawPlanes)
+  (plus-update-lights)
+  (plus-update-flashes)
   (when (not (= halfheight (arithmetic-shift viewheight -1))) (SetPlaneViewSize))
   (when plus-enabled (plus-build-planes))
   (let rows ((height 1))
@@ -434,14 +435,21 @@
 
 (define (ScalePost pixx height page column tilex tiley)
   (let* ((rows (scale-rows height))
-         (level (plus-light-level (plus-distance-level rows viewheight) tilex tiley))
+         (level (if plus-enabled
+                    (let ((left (* tilex TILEGLOBAL))
+                          (top (* tiley TILEGLOBAL)))
+                      (plus-light-level (plus-distance-level rows viewheight)
+                                        (max (+ left 1) (min (+ left TILEGLOBAL -1) (ref wallx pixx)))
+                                        (max (+ top 1) (min (+ top TILEGLOBAL -1) (ref wally pixx)))))
+                    0))
+         (shade (ref plus-shades (plus-shade level)))
          (top (truncate (/ (- viewheight rows) 2)))
          (texels (PM_GetPage page)))
     (let loop ((y (max top 0)) (limit (min (+ top rows) viewheight)))
       (when (< y limit)
         (let ((texel (truncate (/ (* (- y top) 64) rows))))
           (setf! framebuffer (+ (* (+ y viewtop) screenwidth) viewleft pixx)
-                 (plus-color (ref texels (+ (* column 64) texel)) (plus-shade level))))
+                 (ref shade (ref texels (+ (* column 64) texel)))))
         (loop (+ y 1) limit)))))
 
 (define (FarScalePost pixx height page column tilex tiley)
@@ -505,7 +513,7 @@
       (set! last-door-number door)
       (set! last-door-texture texture)
       (ScalePost pixx (ref wallheight pixx) (doorpage (ref doorlock door) #f) column
-                 (ref doortilex door) ytile)
+                 (ref doortilex door) (if (< viewy hity) (- ytile 1) (+ ytile 1)))
       (plus-door-edge pixx (ref wallheight pixx)))))
 
 (define (HitVertDoor pixx door ymid xtile)
@@ -522,7 +530,7 @@
       (set! last-door-number door)
       (set! last-door-texture texture)
       (ScalePost pixx (ref wallheight pixx) (doorpage (ref doorlock door) #t) column
-                 xtile (ref doortiley door))
+                 (if (< viewx hitx) (- xtile 1) (+ xtile 1)) (ref doortiley door))
       (plus-door-edge pixx (ref wallheight pixx)))))
 
 (define (HitHorizPWall pixx tile xmid ytile ytilestep)
@@ -695,6 +703,8 @@
   (let ((display (if fizzlein
                      (bytevector-copy framebuffer 0 (bytevector-length framebuffer))
                      #f)))
+    (plus-update-lights)
+    (plus-update-flashes)
     (spotvis-clear)
     (VGAClearScreen)
     (WallRefresh)
