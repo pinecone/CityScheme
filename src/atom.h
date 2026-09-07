@@ -286,23 +286,29 @@ struct VectorCursor;
 
 struct Vec
 {
+private:
 	std::vector<Atom> values;
+	size_t count{};
+
+public:
 	std::vector<VectorCursor*> cursors;
 	std::vector<size_t> cursor_indices;
 
 	Vec() = default;
 	template <typename It>
-	Vec(It first, It last) : values{first, last} {}
-	Vec(size_t size, Atom fill) : values(size, fill) {
+	Vec(It first, It last) : values(first, last), count{values.size()} {}
+	Vec(size_t size, Atom fill) : values(size, fill), count{size} {}
+	Vec(const Vec& other) : values(other.values), count{other.count} {}
+	Vec(Vec&& other) noexcept : values(std::move(other.values)), count{other.count}
+	{
+		other.count = 0;
 	}
-	Vec(const Vec& other) : values{other.values} {}
-	Vec(Vec&& other) noexcept : values{std::move(other.values)} {}
 	~Vec();
 
 	using iterator = std::vector<Atom>::iterator;
 
-	bool empty() const { return values.empty(); }
-	size_t size() const { return values.size(); }
+	bool empty() const { return count == 0; }
+	size_t size() const { return count; }
 	Atom* data() { return values.data(); }
 	Atom& front() { return values.front(); }
 	Atom& back() { return values.back(); }
@@ -310,9 +316,22 @@ struct Vec
 	iterator begin() { return values.begin(); }
 	iterator end() { return values.end(); }
 	void reserve(size_t capacity) { values.reserve(capacity); }
-	void push_back(Atom value) { values.push_back(value); }
-	void pop_back() { values.pop_back(); }
-	iterator erase(iterator position) { return values.erase(position); }
+	void push_back(Atom value)
+	{
+		values.push_back(value);
+		++count;
+	}
+	void pop_back()
+	{
+		values.pop_back();
+		--count;
+	}
+	iterator erase(iterator position)
+	{
+		iterator next{values.erase(position)};
+		--count;
+		return next;
+	}
 };
 
 struct EmptyList
@@ -340,8 +359,12 @@ struct dynamic_type<Number>
 	static constexpr jet::Type id = jet::Type::Number;
 };
 
-#define X(name, _tag, cpp) \
-	template <> struct dynamic_type<cpp> { static constexpr jet::Type id = jet::Type::name; };
+#define X(name, tag_name, cpp) \
+	template <> struct dynamic_type<cpp> \
+	{ \
+		static constexpr jet::Type id = jet::Type::name; \
+		static constexpr int tag = jet_tag::tag_name; \
+	};
 JET_IMM_TYPES(X)
 JET_HEAP_TYPES(X)
 #undef X

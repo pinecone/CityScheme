@@ -1031,16 +1031,32 @@ JET_ALWAYS_INLINE bool index_of_key(size_t size, Atom key, FieldIc& ic, size_t& 
 		}
 		JET_PROFILE_FIELD_KEY_MISS();
 	}
-	if (!is_type<jet::Type::Number>(key)) [[unlikely]]
+	if (key.bits == 0) [[unlikely]]
 	{
-		return false;
+		index = 0;
 	}
-	double n = unbox<Number>(key);
-	if (!is_integer(n) || n < 0) [[unlikely]]
+	else
 	{
-		return false;
+		uint64_t exponent{(key.bits >> 52) - 1023};
+		if (exponent > 63) [[unlikely]]
+		{
+			return false;
+		}
+		uint64_t significand{(key.bits & 0x000f'ffff'ffff'ffffULL) | 0x0010'0000'0000'0000ULL};
+		if (exponent > 52) [[unlikely]]
+		{
+			index = significand << (exponent - 52);
+		}
+		else
+		{
+			uint64_t shift{52 - exponent};
+			index = significand >> shift;
+			if ((index << shift) != significand) [[unlikely]]
+			{
+				return false;
+			}
+		}
 	}
-	index = static_cast<size_t>(n);
 	if (index >= size) [[unlikely]]
 	{
 		return false;
@@ -1097,6 +1113,7 @@ struct ContainerAccess
 {
 	static constexpr bool is_struct = false;
 	static constexpr bool caches_keys = false;
+	static constexpr int tag = dynamic_type<T>::tag;
 
 	template <FieldKeySource key_source, typename Op>
 	JET_ALWAYS_INLINE static bool load_fast(VmState& s, Op* op, Atom* frame_regs)
@@ -1195,7 +1212,7 @@ JET_ALWAYS_INLINE bool field_receiver_matches(Atom object, uint64_t dispatch_key
 	}
 	else
 	{
-		return type_bits(object) == dispatch_key;
+		return object.tag_is<Access::tag>();
 	}
 }
 
