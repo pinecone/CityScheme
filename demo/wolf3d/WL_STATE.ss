@@ -1396,7 +1396,7 @@
 
 (define (run-think index tics)
   (when (ref actor-state index)
-    (let ((think (ref (ref actor-state index) 'think)))
+    (let ((think (ref actor-state index 'think)))
       (when think
         (think index tics)))))
 
@@ -1404,11 +1404,11 @@
 (define (advance-states index tics)
   (let loop ()
     (when (and (ref actor-state index) (<= (ref actor-ticcount index) 0))
-      (let ((action (ref (ref actor-state index) 'action)))
+      (let ((action (ref actor-state index 'action)))
         (when action
           (action index tics)))
       (when (ref actor-state index)
-        (let ((next (ref (ref actor-state index) 'next)))
+        (let ((next (ref actor-state index 'next)))
           (if next
               (begin
                 (setf! actor-state index next)

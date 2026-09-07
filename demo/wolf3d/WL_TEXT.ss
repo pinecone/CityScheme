@@ -93,8 +93,8 @@
         (else 0)))
 
 (define (pic-margins)
-  (let ((width (ref (ref pictable (- picnum STARTPICS)) 'width))
-        (height (ref (ref pictable (- picnum STARTPICS)) 'height)))
+  (let ((width (ref pictable (- picnum STARTPICS) 'width))
+        (height (ref pictable (- picnum STARTPICS) 'height)))
     (let ((picmid (+ picx (truncate (/ width 2)))))
       (let ((margin (if (> picmid SCREENMID)
                         (- picx PICMARGIN)

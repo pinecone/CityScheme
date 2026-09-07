@@ -284,8 +284,8 @@
                              (if (>= value 256) (- 255 value) value))))
             (loop (+ node 1)))))))
 
-(define (huffbit0 table node) (ref (ref table node) 0))
-(define (huffbit1 table node) (ref (ref table node) 1))
+(define (huffbit0 table node) (ref table node 0))
+(define (huffbit1 table node) (ref table node 1))
 
 (define (CAL_HuffExpand source sourceoff dest length table screenhack)
   (let ((plane-length (quotient length 4))
@@ -390,8 +390,8 @@
         (size (* 64 64 2)))
     (let loop ((plane 0))
       (when (< plane MAPPLANES)
-        (let ((pos (ref (ref header 'planestart) plane))
-              (expanded (readu16 mapfiledata (ref (ref header 'planestart) plane))))
+        (let ((pos (ref header 'planestart plane))
+              (expanded (readu16 mapfiledata (ref header 'planestart plane))))
           (let ((buffer2 (make-bytevector expanded 0)))
             (CAL_CarmackExpand mapfiledata (+ pos 2) buffer2 expanded)
             (CA_RLEWexpand buffer2 2 (ref mapsegs plane) size (RLEWtag))))

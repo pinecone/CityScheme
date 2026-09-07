@@ -75,7 +75,7 @@
 (define plus-flash-next 0)
 
 (define (plus-color color level)
-  (if plus-enabled (ref (ref plus-shades (+ level 4)) color) color))
+  (if plus-enabled (ref plus-shades (+ level 4) color) color))
 
 (define (plus-shade level16)
   (- (truncate (/ (+ level16 72) 16)) 4))
@@ -105,7 +105,7 @@
                                       0
                                       (max 0 (- PLUS_FLASH_TICS (- TimeCount (ref plus-flash-starts slot))))))
                                  (level (truncate
-                                         (/ (* (ref (ref plus-flashmaps slot) spot) remaining)
+                                         (/ (* (ref plus-flashmaps slot spot) remaining)
                                             PLUS_FLASH_TICS))))
                             (slots (+ slot 1) (max brightest level))))))
              (dark (truncate (/ (* level (- 15 (ref plus-lightmap spot))) 15)))
@@ -379,12 +379,12 @@
           (let bands ((band 0))
             (cond ((= band PLUS_AO_RANGE)
                    (if (and plus-contact-enabled edge)
-                       (ref (ref plus-ao-shades (- PLUS_AO_RANGE 1)) shade)
+                       (ref plus-ao-shades (- PLUS_AO_RANGE 1) shade)
                        (ref plus-shades shade)))
                   ((< distance (* width (+ band 1) (+ band 1)))
                    (if (and plus-corners-enabled (plus-corner? worldx worldy))
-                       (ref (ref plus-corner-shades band) shade)
-                       (ref (ref plus-ao-shades band) shade)))
+                       (ref plus-corner-shades band shade)
+                       (ref plus-ao-shades band shade)))
                   (else (bands (+ band 1))))))
         (ref plus-shades shade))))
 
@@ -587,9 +587,8 @@
              (limit (+ bottom depth (if (and ceiling? (or contact (>= rows 64))) 1 0)))
              (level (plus-light-level 0 (ref vis-tilex index) (ref vis-tiley index)))
              (color (if ceiling?
-                        (ref (ref (ref plus-ao-shades (if contact (- PLUS_AO_RANGE 1) 0))
-                                  (+ (plus-shade level) 4))
-                             (ceiling-color))
+                        (ref plus-ao-shades (if contact (- PLUS_AO_RANGE 1) 0)
+                             (+ (plus-shade level) 4) (ceiling-color))
                         (plus-color FLOOR (plus-shade (min 240 (+ level PLUS_SHADOW_DEPTH))))))
              (luma (ref plus-luma color)))
         (let scan ((row (max (arithmetic-shift viewheight -1) (- bottom depth))))

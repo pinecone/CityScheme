@@ -284,7 +284,7 @@
                     (py (+ y row)))
                 (when (and (>= px 0) (< px screenwidth) (>= py 0) (< py screenheight))
                   (setf! framebuffer (+ (* py screenwidth) px)
-                         (ref (ref latch-planes plane) (+ source (* row width) byte)))))
+                         (ref latch-planes plane (+ source (* row width) byte)))))
               (planes (+ plane 1))))
           (bytes (+ byte 1))))
       (rows (+ row 1)))))

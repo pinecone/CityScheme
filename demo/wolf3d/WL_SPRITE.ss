@@ -207,7 +207,7 @@
   (let loop ((index 0))
     (when (< index actorcount)
       (let ((shapenum (if (ref actor-state index)
-                          (ref (ref actor-state index) 'shapenum)
+                          (ref actor-state index 'shapenum)
                           0)))
         (if (or (= shapenum 0) (not (actor-visible index)))
             (setf! actor-flags index (bitwise-and (ref actor-flags index) (- 255 FL_VISABLE)))

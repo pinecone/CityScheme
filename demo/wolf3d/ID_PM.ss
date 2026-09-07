@@ -234,14 +234,14 @@
           (let load ((page 0) (current 0))
             (if (= page ChunksInFile)
                 (update total total)
-                (if (or (= (ref (ref PMPages page) 'offset) 0) (ref pagecache page))
+                (if (or (= (ref PMPages page 'offset) 0) (ref pagecache page))
                     (load (+ page 1) current)
                     (begin
                       (PM_GetPage page)
                       (update (+ current 1) total)
                       (load (+ page 1) (+ current 1)))))))
         (count (+ page 1)
-               (if (or (= (ref (ref PMPages page) 'offset) 0) (ref pagecache page))
+               (if (or (= (ref PMPages page 'offset) 0) (ref pagecache page))
                    total
                    (+ total 1))))))
 
