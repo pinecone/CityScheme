@@ -87,7 +87,11 @@ struct Struct;
 	X(retc,            "retc")                                                                          \
 	X(retu,       "retu")                                                                          \
 	X(return_to_host,      "rethost") \
-	X(trunc,               "trunc")
+	X(trunc,               "trunc") \
+	X(min,                 "min") \
+	X(max,                 "max") \
+	X(mink,                "mink") \
+	X(maxk,                "maxk")
 
 enum class Opcode : uint8_t
 {
@@ -367,6 +371,8 @@ inline size_t opcode_step(uint8_t op, const uint8_t* operands)
 		case Opcode::sub:
 		case Opcode::mul:
 		case Opcode::div:
+		case Opcode::min:
+		case Opcode::max:
 		case Opcode::numeq:
 		case Opcode::eq:
 		case Opcode::lt:
@@ -378,6 +384,8 @@ inline size_t opcode_step(uint8_t op, const uint8_t* operands)
 		case Opcode::subk:
 		case Opcode::mulk:
 		case Opcode::divk:
+		case Opcode::mink:
+		case Opcode::maxk:
 		case Opcode::numeqk:
 		case Opcode::eqk:
 		case Opcode::ltk:

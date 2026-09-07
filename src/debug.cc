@@ -679,6 +679,8 @@ void decode_args(FILE* out, uint8_t op, Code* p)
 		case Opcode::sub:
 		case Opcode::mul:
 		case Opcode::div:
+		case Opcode::min:
+		case Opcode::max:
 		case Opcode::numeq:
 		case Opcode::eq:
 		case Opcode::lt:
@@ -694,6 +696,8 @@ void decode_args(FILE* out, uint8_t op, Code* p)
 		case Opcode::subk:
 		case Opcode::mulk:
 		case Opcode::divk:
+		case Opcode::mink:
+		case Opcode::maxk:
 		case Opcode::numeqk:
 		case Opcode::eqk:
 		case Opcode::ltk:

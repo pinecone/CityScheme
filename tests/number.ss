@@ -229,3 +229,48 @@
 ($check (string=? (number->string 1e21) "1e+21"))
 ($check (string=? (number->string 0.5) "0.5"))
 ($check (string=? (number->string 1e-7) "1e-07"))
+
+(define infinity (/ 1 0))
+(define nan (/ 0 0))
+(define values (list 0 -0.0 1 -1 3.5 -3.5 5e-324 1.7976931348623157e308 infinity (- infinity) nan))
+
+(for-each
+  (lambda (lhs)
+    (for-each
+      (lambda (rhs)
+        ($check (eq? (apply min (list lhs rhs)) (min lhs rhs)))
+        ($check (eq? (apply max (list lhs rhs)) (max lhs rhs))))
+      values)
+    ($check (eq? (apply min (list lhs 0)) (min lhs 0)))
+    ($check (eq? (apply max (list lhs 0)) (max lhs 0)))
+    ($check (eq? (apply min (list 0 lhs)) (min 0 lhs)))
+    ($check (eq? (apply max (list 0 lhs)) (max 0 lhs))))
+  values)
+
+($check (eq? nan (min nan 1)))
+($check (eq? nan (max nan 1)))
+($check (eq? 1 (min 1 nan)))
+($check (eq? 1 (max 1 nan)))
+($check (eq? 0 (min 0 -0.0)))
+($check (eq? 0 (max -0.0 0)))
+($check (= 3 (min 3)))
+($check (= 3 (max 3)))
+($check (= -2 (min 4 -2 7)))
+($check (= 7 (max 4 -2 7)))
+
+(let ((min +) (max -))
+  ($check (= 9 (min 4 5)))
+  ($check (= -1 (max 4 5))))
+
+(let ((min min) (max max))
+  ($check (= 4 (min 4 5)))
+  ($check (= 5 (max 4 5)))
+  (set! min +)
+  (set! max -)
+  ($check (= 9 (min 4 5)))
+  ($check (= -1 (max 4 5))))
+
+(let ((order '()))
+  ($check (= 2 (min (begin (set! order (cons 'left order)) 2)
+                    (begin (set! order (cons 'right order)) 3))))
+  ($check (equal? '(right left) order)))

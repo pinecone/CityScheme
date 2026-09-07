@@ -3707,6 +3707,14 @@ namespace
 		{
 			return Opcode::div;
 		}
+		if (name == "min")
+		{
+			return Opcode::min;
+		}
+		if (name == "max")
+		{
+			return Opcode::max;
+		}
 		if (name == "=")
 		{
 			return Opcode::numeq;
@@ -3986,6 +3994,8 @@ void Compiler::select_call_op(Expr* expr, Expr* current)
 				case Opcode::add: op = Opcode::addk; break;
 				case Opcode::mul: op = Opcode::mulk; break;
 				case Opcode::div: op = Opcode::divk; break;
+				case Opcode::min: op = Opcode::mink; break;
+				case Opcode::max: op = Opcode::maxk; break;
 				case Opcode::numeq:  op = Opcode::numeqk;  break;
 				case Opcode::eq:     op = Opcode::eqk;     break;
 				case Opcode::lt:  op = Opcode::ltk;  break;
@@ -5728,7 +5738,10 @@ namespace
 				}
 				if (val->kind == ExprKind::VarRef)
 				{
-					if (Compiler::OpSelection sel = selection(val, "var access"); sel.op == Opcode::mov)
+					ResolvedBinding source = db.binding(val);
+					if (Compiler::OpSelection sel = selection(val, "var access"); sel.op == Opcode::mov
+					    && !expr->let.owner->lambda.reassigned_after_init_locals[breadth]
+					    && !source.lambda->lambda.reassigned_after_init_locals[source.breadth])
 					{
 						current_lambda().phys_home[breadth] = sel.u.var.addr;
 						continue;
@@ -6057,6 +6070,8 @@ namespace
 				case Opcode::subk:
 				case Opcode::mulk:
 				case Opcode::divk:
+				case Opcode::mink:
+				case Opcode::maxk:
 				case Opcode::numeqk:
 				case Opcode::eqk:
 				case Opcode::ltk:
@@ -6219,6 +6234,8 @@ namespace
 						case Opcode::sub:
 						case Opcode::mul:
 						case Opcode::div:
+						case Opcode::min:
+						case Opcode::max:
 						case Opcode::numeq:
 						case Opcode::eq:
 						case Opcode::lt:
@@ -6229,6 +6246,8 @@ namespace
 						case Opcode::subk:
 						case Opcode::mulk:
 						case Opcode::divk:
+						case Opcode::mink:
+						case Opcode::maxk:
 						case Opcode::numeqk:
 						case Opcode::eqk:
 						case Opcode::ltk:
@@ -6650,6 +6669,8 @@ namespace
 				case Opcode::sub:
 				case Opcode::mul:
 				case Opcode::div:
+				case Opcode::min:
+				case Opcode::max:
 				case Opcode::numeq:
 				case Opcode::eq:
 				case Opcode::lt:
@@ -6660,6 +6681,8 @@ namespace
 				case Opcode::subk:
 				case Opcode::mulk:
 				case Opcode::divk:
+				case Opcode::mink:
+				case Opcode::maxk:
 				case Opcode::numeqk:
 				case Opcode::eqk:
 				case Opcode::ltk:

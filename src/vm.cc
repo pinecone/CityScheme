@@ -1419,6 +1419,18 @@ JET_ALWAYS_INLINE static Atom div_atoms(VmState& s, Atom a, Atom b)
 	JET_DIE_UNLESS(&s, is_type<jet::Type::Number>(a) && is_type<jet::Type::Number>(b), "/: expected numbers");
 	return box(Number::from_ieee(unbox<Number>(a) / unbox<Number>(b)));
 }
+JET_ALWAYS_INLINE static Atom min_atoms(VmState& state, Atom lhs, Atom rhs)
+{
+	JET_DIE_UNLESS(&state, is_type<jet::Type::Number>(lhs) && is_type<jet::Type::Number>(rhs),
+	               "min: expected numbers");
+	return unbox<Number>(rhs) < unbox<Number>(lhs) ? rhs : lhs;
+}
+JET_ALWAYS_INLINE static Atom max_atoms(VmState& state, Atom lhs, Atom rhs)
+{
+	JET_DIE_UNLESS(&state, is_type<jet::Type::Number>(lhs) && is_type<jet::Type::Number>(rhs),
+	               "max: expected numbers");
+	return unbox<Number>(lhs) < unbox<Number>(rhs) ? rhs : lhs;
+}
 JET_ALWAYS_INLINE static Atom numeq_atoms(VmState& s, Atom a, Atom b)
 {
 	JET_DIE_UNLESS(&s, is_type<jet::Type::Number>(a) && is_type<jet::Type::Number>(b), "=: expected numbers");
@@ -1621,6 +1633,8 @@ static constexpr auto& op_add  = op_binop_rr_impl<add_atoms>;
 static constexpr auto& op_sub  = op_binop_rr_impl<sub_atoms>;
 static constexpr auto& op_mul  = op_binop_rr_impl<mul_atoms>;
 static constexpr auto& op_div  = op_binop_rr_impl<div_atoms>;
+static constexpr auto& op_min = op_binop_rr_impl<min_atoms>;
+static constexpr auto& op_max = op_binop_rr_impl<max_atoms>;
 static constexpr auto& op_numeq   = op_binop_rr_impl<numeq_atoms>;
 static constexpr auto& op_eq      = op_binop_rr_impl<eq_atoms>;
 static constexpr auto& op_lt   = op_binop_rr_impl<lt_atoms>;
@@ -1631,6 +1645,8 @@ static constexpr auto& op_addk = op_binop_rk_impl<add_atoms>;
 static constexpr auto& op_subk = op_binop_rk_impl<sub_atoms>;
 static constexpr auto& op_mulk = op_binop_rk_impl<mul_atoms>;
 static constexpr auto& op_divk = op_binop_rk_impl<div_atoms>;
+static constexpr auto& op_mink = op_binop_rk_impl<min_atoms>;
+static constexpr auto& op_maxk = op_binop_rk_impl<max_atoms>;
 static constexpr auto& op_numeqk  = op_binop_rk_impl<numeq_atoms>;
 static constexpr auto& op_eqk     = op_binop_rk_impl<eq_atoms>;
 static constexpr auto& op_ltk  = op_binop_rk_impl<lt_atoms>;
