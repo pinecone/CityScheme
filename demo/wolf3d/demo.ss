@@ -25,7 +25,7 @@
 
 (define (demo-save checksum)
   (when (= demo-frames 0) (demo-error "recording is empty"))
-  (let ((header (bytevector 87 79 76 70 1 (if plus-enabled 1 0) 19 gd_hard 0 0 0 0 0 0 0 0))
+  (let ((header (bytevector 87 79 76 70 1 (if plus-available 1 0) 19 gd_hard 0 0 0 0 0 0 0 0))
         (port (open-output-file demo-path)))
     (demo-put32! header 8 demo-frames)
     (demo-put32! header 12 checksum)
