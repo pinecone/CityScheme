@@ -63,7 +63,11 @@
     (make-vector 20 identity)))
 (define plus-emissive (make-bytevector 256 0))
 (define plus-luma (make-bytevector 256 0))
-(define plus-feet (make-vector (+ SPR_GRD_SHOOT3 1) #f))
+(define plus-corpses
+  (vector SPR_GRD_DEAD SPR_DOG_DEAD SPR_SS_DEAD SPR_MUT_DEAD SPR_OFC_DEAD
+          SPR_BOSS_DEAD SPR_SCHABB_DEAD SPR_FAKE_DEAD SPR_MECHA_DEAD SPR_HITLER_DEAD
+          SPR_GIFT_DEAD SPR_GRETEL_DEAD SPR_FAT_DEAD))
+(define plus-feet (make-vector 0 #f))
 (define plus-mounts (make-vector (+ SPR_STAT_0 19) #f))
 (define plus-lightmap (make-bytevector (* MAPSIZE MAPSIZE) 0))
 (define plus-flashmaps
@@ -539,11 +543,17 @@
     (and (<= first last) (tuple first (+ last 1)))))
 
 (define (plus-build-feet)
+  (set! plus-feet (make-vector (- PMSoundStart PMSpriteStart) #f))
   (let shapes ((shape SPR_GRD_S_1))
     (when (<= shape SPR_GRD_SHOOT3)
       (when (plus-guard? shape)
         (setf! plus-feet shape (plus-shape-bounds shape 60 64)))
-      (shapes (+ shape 1)))))
+      (shapes (+ shape 1))))
+  (let corpses ((index 0))
+    (when (< index (vector-length plus-corpses))
+      (let ((shape (ref plus-corpses index)))
+        (setf! plus-feet shape (plus-shape-bounds shape 60 64)))
+      (corpses (+ index 1)))))
 
 (define (plus-build-mounts)
   (let shapes ((shape SPR_STAT_0))
@@ -593,10 +603,9 @@
   (when plus-enabled
     (let sprites ((index 0))
       (when (< index viscount)
-        (let ((shape (ref vis-shape index)))
-          (cond ((plus-guard? shape)
-                 (let ((feet (ref plus-feet shape)))
-                   (when feet (plus-shadow index feet #f))))
+        (let* ((shape (ref vis-shape index))
+               (feet (and (>= shape 0) (< shape (vector-length plus-feet)) (ref plus-feet shape))))
+          (cond (feet (plus-shadow index feet #f))
                 ((and plus-ao-enabled (plus-ceiling-shape? shape))
                  (let ((mount (ref plus-mounts shape)))
                    (when mount (plus-shadow index mount #t))))))
