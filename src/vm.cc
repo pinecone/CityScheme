@@ -668,20 +668,24 @@ enum class CopyVariadic
 	Yes,
 };
 
+template <CopyVariadic variadic, size_t... counts>
+JET_ALWAYS_INLINE static void copy_atoms(Atom* dst, const Atom* src, size_t count,
+                                         std::index_sequence<counts...>)
+{
+	if (((count == counts && (std::memmove(dst, src, counts * sizeof(Atom)), true)) || ...))
+	{
+		return;
+	}
+	if constexpr (variadic == CopyVariadic::Yes)
+	{
+		std::memmove(dst, src, count * sizeof(Atom));
+	}
+}
+
 template <size_t max_unrolled, CopyVariadic variadic>
 JET_ALWAYS_INLINE static void copy_atoms(Atom* dst, const Atom* src, size_t count)
 {
-	[&]<size_t... counts>(std::index_sequence<counts...>)
-	{
-		if (((count == counts && (std::memmove(dst, src, counts * sizeof(Atom)), true)) || ...))
-		{
-			return;
-		}
-		if constexpr (variadic == CopyVariadic::Yes)
-		{
-			std::memmove(dst, src, count * sizeof(Atom));
-		}
-	}(std::make_index_sequence<max_unrolled + 1>{});
+	copy_atoms<variadic>(dst, src, count, std::make_index_sequence<max_unrolled + 1>{});
 }
 
 enum class CallTail
@@ -785,6 +789,8 @@ JET_NOINLINE JET_PRESERVE_NONE static void op_enter_lambda_slow(VM_OP_PARAMS)
 	DISPATCH();
 }
 
+static constexpr size_t FAST_ARGS = 16;
+
 template <CallTail tail, class Ic = void>
 JET_ALWAYS_INLINE JET_PRESERVE_NONE static void op_enter_lambda_fast(VM_OP_PARAMS)
 {
@@ -795,7 +801,7 @@ JET_ALWAYS_INLINE JET_PRESERVE_NONE static void op_enter_lambda_fast(VM_OP_PARAM
 	if constexpr (std::is_void_v<Ic>)
 	{
 		size_t nargs = static_cast<size_t>(stack_top - args);
-		if (is_nary(la.arity) || (tail == CallTail::Yes && nargs > 16)) [[unlikely]]
+		if (is_nary(la.arity) || (tail == CallTail::Yes && nargs > FAST_ARGS)) [[unlikely]]
 		{
 			JET_MUSTTAIL return op_enter_lambda_slow<tail>(VM_OP_ARGS);
 		}
@@ -818,7 +824,7 @@ JET_ALWAYS_INLINE JET_PRESERVE_NONE static void op_enter_lambda_fast(VM_OP_PARAM
 
 	if constexpr (tail == CallTail::Yes)
 	{
-		copy_atoms<16, CopyVariadic::No>(dst, args, static_cast<size_t>(stack_top - args));
+		copy_atoms<FAST_ARGS, CopyVariadic::No>(dst, args, static_cast<size_t>(stack_top - args));
 		frame->code = code;
 		frame->closure = &la;
 		frame->top = base + n_locals;
@@ -1932,7 +1938,7 @@ static bool cache_lambda_entry(VmState& s, Atom callee, Ic* op)
 		return false;
 	}
 	Lambda* la = unbox<Lambda>(callee);
-	if (is_nary(la->arity) || (tail == CallTail::Yes && op->nargs > 16))
+	if (is_nary(la->arity) || (tail == CallTail::Yes && op->nargs > FAST_ARGS))
 	{
 		return false;
 	}

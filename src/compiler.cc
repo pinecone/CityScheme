@@ -4999,20 +4999,15 @@ namespace
 			}
 
 			std::vector<Capture> captures = collect_captures(lambda, name);
+			// lift lambdas while retaining mutated outer bindings as captures
+			std::erase_if(captures, [&](const Capture& capture)
+			{
+				Compiler::LambdaBindings& owner = db.lambda_bindings_[capture.binding.lambda];
+				return get(owner.reassigned_after_init, capture.binding.breadth);
+			});
 			if (captures.empty())
 			{
 				return let_expr;
-			}
-
-			// A parameter is a copy: a capture whose binding is written after init must
-			// stay a capture or writes through one copy are lost to the others.
-			for (Capture& cap : captures)
-			{
-				if (Compiler::LambdaBindings& owner = db.lambda_bindings_[cap.binding.lambda];
-				    get(owner.reassigned_after_init, cap.binding.breadth))
-				{
-					return let_expr;
-				}
 			}
 
 			if (!self_calls_all_tail(lambda, name, false))
