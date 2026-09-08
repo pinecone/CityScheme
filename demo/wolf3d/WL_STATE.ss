@@ -286,7 +286,7 @@
                     (nextx (+ x xstep)))
                 (cond
                   ((= value 0) (if (= nextx limit) #t (loop nextx nextfrac limit)))
-                  ((or (< value 128) (> value 256)) #f)
+                  ((or (< value 128) (>= value 192)) #f)
                   ((door-blocks (bitwise-and value 127) (- nextfrac (truncate (/ ystep 2)))) #f)
                   (else (if (= nextx limit) #t (loop nextx nextfrac limit))))))))))))
 
@@ -307,7 +307,7 @@
                     (nexty (+ y ystep)))
                 (cond
                   ((= value 0) (if (= nexty limit) #t (loop nexty nextfrac limit)))
-                  ((or (< value 128) (> value 256)) #f)
+                  ((or (< value 128) (>= value 192)) #f)
                   ((door-blocks (bitwise-and value 127) (- nextfrac (truncate (/ xstep 2)))) #f)
                   (else (if (= nexty limit) #t (loop nexty nextfrac limit))))))))))))
 
