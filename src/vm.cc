@@ -1512,7 +1512,9 @@ JET_PRESERVE_NONE static void op_trunc(VM_OP_PARAMS)
 {
 	OP_trunc* operands{reinterpret_cast<OP_trunc*>(pc)};
 	pc += sizeof(*operands);
-	frame_regs[operands->dst] = box(truncate_number(slow_unbox<Number>(s, frame_regs[operands->src])));
+	Atom value{frame_regs[operands->src]};
+	type_check(s, value, jet::Type::Number);
+	frame_regs[operands->dst] = truncate_number(value);
 	DISPATCH();
 }
 

@@ -6,6 +6,7 @@
 
 #include "atom.h"
 #include "error.h"
+#include "numbers.h"
 #include "platform.h"
 #include "vm.h"
 #include <algorithm>
@@ -923,17 +924,6 @@ inline bool is_integer(double x)
 	return is_exact(x);
 }
 
-inline bool is_nonnegative_integer(VmState& s, Atom num)
-{
-	double n = slow_unbox<Number>(s, num);
-	return is_integer(n) && n >= 0;
-}
-
-inline bool is_byte(VmState& s, Atom a)
-{
-	return is_nonnegative_integer(s, a) && unbox<Number>(a) <= 255;
-}
-
 void init_number(VmState& s);
 
 constexpr uint64_t FIELD_IC_NONE = ~static_cast<uint64_t>(0);
@@ -1031,28 +1021,16 @@ JET_ALWAYS_INLINE bool index_of_key(size_t size, Atom key, FieldIc& ic, size_t& 
 		}
 		JET_PROFILE_FIELD_KEY_MISS();
 	}
-	if (key.bits == 0) [[unlikely]]
-	{
-		index = 0;
-	}
-	else
-	{
-		uint64_t shift{(1023 + 63) - (key.bits >> 52)};
-		if (shift > 63) [[unlikely]]
-		{
-			return false;
-		}
-		uint64_t significand{(key.bits << 11) | (1ULL << 63)};
-		index = significand >> shift;
-		if ((index << shift) != significand) [[unlikely]]
-		{
-			return false;
-		}
-	}
-	if (index >= size) [[unlikely]]
+	uint64_t value;
+	if (!as_uint64(key, value)) [[unlikely]]
 	{
 		return false;
 	}
+	if (value >= size) [[unlikely]]
+	{
+		return false;
+	}
+	index = value;
 	if constexpr (key_source == FieldKeySource::Constant)
 	{
 		ic.cached_index = index;
@@ -1082,16 +1060,12 @@ JET_ALWAYS_INLINE bool container_store(T& container, size_t index, Atom value)
 {
 	if constexpr (std::is_same_v<T, ByteVector>)
 	{
-		if (!is_type<jet::Type::Number>(value)) [[unlikely]]
+		uint8_t byte;
+		if (!as_uint8(value, byte)) [[unlikely]]
 		{
 			return false;
 		}
-		double n = unbox<Number>(value);
-		if (!is_integer(n) || n < 0 || n > 255) [[unlikely]]
-		{
-			return false;
-		}
-		container[index] = static_cast<uint8_t>(n);
+		container[index] = byte;
 	}
 	else
 	{
@@ -1391,24 +1365,6 @@ template <typename T, T (*op)()>
 Atom arith_nullary_fun(VmState&, Atom*, Atom*)
 {
 	return box(Number::trusted(static_cast<double>(op())));
-}
-
-JET_ALWAYS_INLINE inline Number truncate_number(double value)
-{
-	uint64_t bits{std::bit_cast<uint64_t>(value)};
-	uint64_t exponent{(bits >> 52) & 2047};
-
-	if (exponent < 1023) [[unlikely]]
-	{
-		return Number::trusted(0.0);
-	}
-	if (exponent >= 1075) [[unlikely]]
-	{
-		return Number::trusted(value);
-	}
-
-	bits &= ~((uint64_t{1} << (1075 - exponent)) - 1);
-	return Number::trusted(std::bit_cast<double>(bits));
 }
 
 template <typename T, T (*op)(T)>

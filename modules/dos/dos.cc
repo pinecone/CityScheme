@@ -604,16 +604,6 @@ static Atom play_sound(VmState& s, Atom channel, Atom pcm, Atom rate)
 	return Atom{};
 }
 
-static uint8_t adlib_byte(VmState& s, Atom value, const char* name)
-{
-	double number = slow_unbox<Number>(s, value);
-	JET_DIE_UNLESS(&s,
-	               std::isfinite(number) && number >= 0.0 && number <= 255.0 && std::floor(number) == number,
-	               "{}: {}, expected an integer from 0 to 255", name, number);
-
-	return static_cast<uint8_t>(number);
-}
-
 static bool adlib_reset(VmState&)
 {
 	if (!start_audio())
@@ -632,8 +622,8 @@ static bool adlib_reset(VmState&)
 
 static Atom adlib_write(VmState& s, Atom register_value, Atom data_value)
 {
-	uint8_t register_byte = adlib_byte(s, register_value, "adlib-write register");
-	uint8_t data_byte = adlib_byte(s, data_value, "adlib-write value");
+	uint8_t register_byte{as_uint8_or_die(s, register_value)};
+	uint8_t data_byte{as_uint8_or_die(s, data_value)};
 	JET_DIE_UNLESS(&s, start_audio(), "adlib-write: audio device is unavailable");
 
 	const std::lock_guard<std::mutex> held{audio.lock};

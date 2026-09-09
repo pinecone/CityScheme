@@ -259,7 +259,8 @@ static bool jet_is_integer(VmState& s, double x)
 
 static Atom jet_truncate(VmState& state, Atom* first, Atom*)
 {
-	return box(truncate_number(slow_unbox<Number>(state, *first)));
+	type_check(state, *first, jet::Type::Number);
+	return truncate_number(*first);
 }
 
 static double jet_quotient(VmState& s, double a, double b)
@@ -394,17 +395,12 @@ Atom vector_ctor(VmState& s, Atom* first, Atom* last)
 
 Atom make_vector(VmState& s, Atom n, Atom f)
 {
-	JET_DIE_UNLESS(&s, is_nonnegative_integer(s, n), "make-vector expects non-negative integer, given {}",
-	               unbox<Number>(n));
-	return s.gc.alloc_tagged<Vec>(s, unbox<Number>(n), f);
+	return s.gc.alloc_tagged<Vec>(s, slow_unbox<uint64_t>(s, n), f);
 }
 
 Atom vector_ref(VmState& s, Atom v, Atom idx)
 {
-	JET_DIE_UNLESS(&s, is_nonnegative_integer(s, idx), "vector-ref expects non-negative integer, given {}",
-	               unbox<Number>(idx));
-
-	size_t index = unbox<Number>(idx);
+	size_t index{slow_unbox<uint64_t>(s, idx)};
 	Vec& mv = *slow_unbox<Vec>(s, v);
 	JET_DIE_UNLESS(&s, index < mv.size(), "vector-ref index {} out of bounds", index);
 	return mv[index];
@@ -417,9 +413,7 @@ Atom vector_length(VmState& s, Atom v)
 
 static Atom vector_set(VmState& s, Atom v, Atom idx, Atom val)
 {
-	JET_DIE_UNLESS(&s, is_nonnegative_integer(s, idx), "vector-set! expects non-negative integer, given {}",
-	               unbox<Number>(idx));
-	size_t index = unbox<Number>(idx);
+	size_t index{slow_unbox<uint64_t>(s, idx)};
 	Vec& mv = *slow_unbox<Vec>(s, v);
 	JET_DIE_UNLESS(&s, index < mv.size(), "vector-set! index {} out of bounds", index);
 	mv[index] = val;
@@ -554,18 +548,9 @@ void init_vecs(VmState& s)
 	e.bind("vector", make_prim<vector_ctor>(s, n_ary()));
 }
 
-static void die_unless_byte(VmState& s, Atom b)
-{
-	JET_DIE_UNLESS(&s, is_byte(s, b), "bytevector: byte must be exact integer in [0,255], given {}",
-	               unbox<Number>(b));
-}
-
 Atom bytevector_u8_ref(VmState& s, Atom bv, Atom k)
 {
-	JET_DIE_UNLESS(&s, is_nonnegative_integer(s, k),
-	               "bytevector-u8-ref expects non-negative integer, given {}",
-	               unbox<Number>(k));
-	size_t index = unbox<Number>(k);
+	size_t index{slow_unbox<uint64_t>(s, k)};
 	ByteVector& mbv = *slow_unbox<ByteVector>(s, bv);
 	JET_DIE_UNLESS(&s, index < mbv.size(), "bytevector-u8-ref index {} out of bounds", index);
 	return box(Number::trusted(mbv[index]));
@@ -573,14 +558,10 @@ Atom bytevector_u8_ref(VmState& s, Atom bv, Atom k)
 
 static Atom bytevector_u8_set(VmState& s, Atom bv, Atom k, Atom b)
 {
-	JET_DIE_UNLESS(&s, is_nonnegative_integer(s, k),
-	               "bytevector-u8-set! expects non-negative integer, given {}",
-	               unbox<Number>(k));
-	size_t index = unbox<Number>(k);
+	size_t index{slow_unbox<uint64_t>(s, k)};
 	ByteVector& mbv = *slow_unbox<ByteVector>(s, bv);
 	JET_DIE_UNLESS(&s, index < mbv.size(), "bytevector-u8-set! index {} out of bounds", index);
-	die_unless_byte(s, b);
-	mbv[index] = static_cast<uint8_t>(unbox<Number>(b));
+	mbv[index] = as_uint8_or_die(s, b);
 	return b;
 }
 
@@ -591,34 +572,27 @@ static Atom bytevector_length(VmState& s, Atom bv)
 
 static Atom make_bytevector(VmState& s, Atom k, Atom fill)
 {
-	JET_DIE_UNLESS(&s, is_nonnegative_integer(s, k),
-	               "make-bytevector expects non-negative integer, given {}",
-	               unbox<Number>(k));
-	die_unless_byte(s, fill);
-	return s.gc.alloc_tagged<ByteVector>(s, unbox<Number>(k), static_cast<uint8_t>(unbox<Number>(fill)));
+	size_t size{slow_unbox<uint64_t>(s, k)};
+	uint8_t byte{as_uint8_or_die(s, fill)};
+	return s.gc.alloc_tagged<ByteVector>(s, size, byte);
 }
 
 static Atom bytevector_ctor(VmState& s, Atom* first, Atom* last)
 {
 	ByteVector result;
 	result.reserve(last - first);
-	for (Atom* p = first; p != last; ++p)
+	for (Atom* current = first; current != last; ++current)
 	{
-		die_unless_byte(s, *p);
-		result.push_back(static_cast<uint8_t>(unbox<Number>(*p)));
+		result.push_back(as_uint8_or_die(s, *current));
 	}
 	return s.gc.alloc_tagged<ByteVector>(s, std::move(result));
 }
 
 static Atom bytevector_copy(VmState& s, Atom bv, Atom start, Atom end)
 {
-	JET_DIE_UNLESS(&s, is_nonnegative_integer(s, start),
-	               "bytevector-copy expects non-negative integer start, given {}", unbox<Number>(start));
-	JET_DIE_UNLESS(&s, is_nonnegative_integer(s, end),
-	               "bytevector-copy expects non-negative integer end, given {}", unbox<Number>(end));
+	size_t start_index{slow_unbox<uint64_t>(s, start)};
+	size_t end_index{slow_unbox<uint64_t>(s, end)};
 	ByteVector& src = *slow_unbox<ByteVector>(s, bv);
-	size_t start_index = unbox<Number>(start);
-	size_t end_index = unbox<Number>(end);
 	JET_DIE_UNLESS(&s, start_index <= end_index && end_index <= src.size(),
 	               "bytevector-copy range {}..{} out of bounds", start_index, end_index);
 	return s.gc.alloc_tagged<ByteVector>(s, src.begin() + start_index, src.begin() + end_index);
@@ -626,17 +600,11 @@ static Atom bytevector_copy(VmState& s, Atom bv, Atom start, Atom end)
 
 static Atom bytevector_copy_bang(VmState& s, Atom to, Atom at, Atom from, Atom start, Atom end)
 {
-	JET_DIE_UNLESS(&s, is_nonnegative_integer(s, at),
-	               "bytevector-copy! expects non-negative integer at, given {}", unbox<Number>(at));
-	JET_DIE_UNLESS(&s, is_nonnegative_integer(s, start),
-	               "bytevector-copy! expects non-negative integer start, given {}", unbox<Number>(start));
-	JET_DIE_UNLESS(&s, is_nonnegative_integer(s, end),
-	               "bytevector-copy! expects non-negative integer end, given {}", unbox<Number>(end));
+	size_t at_index{slow_unbox<uint64_t>(s, at)};
+	size_t start_index{slow_unbox<uint64_t>(s, start)};
+	size_t end_index{slow_unbox<uint64_t>(s, end)};
 	ByteVector& dst = *slow_unbox<ByteVector>(s, to);
 	ByteVector& src = *slow_unbox<ByteVector>(s, from);
-	size_t at_index = unbox<Number>(at);
-	size_t start_index = unbox<Number>(start);
-	size_t end_index = unbox<Number>(end);
 	JET_DIE_UNLESS(&s, start_index <= end_index && end_index <= src.size(),
 	               "bytevector-copy! source range {}..{} out of bounds", start_index, end_index);
 	JET_DIE_UNLESS(&s, at_index + (end_index - start_index) <= dst.size(),
@@ -1178,19 +1146,17 @@ static Atom string_append(VmState& s, Atom* first, Atom* last)
 
 static size_t string_index(VmState& s, Atom str, Atom k, const char* op)
 {
-	JET_DIE_UNLESS(&s, is_nonnegative_integer(s, k), "{} expects non-negative integer index, given {}",
-	               op, unbox<Number>(k));
-	size_t i = unbox<Number>(k);
+	size_t index{slow_unbox<uint64_t>(s, k)};
 	String& text = *slow_unbox<String>(s, str);
-	JET_DIE_UNLESS(&s, i < text.size(), "{} index {} out of bounds", op, i);
-	return i;
+	JET_DIE_UNLESS(&s, index < text.size(), "{} index {} out of bounds", op, index);
+	return index;
 }
 
 static Atom make_string(VmState& s, Atom* first, Atom* last)
 {
-	size_t n = first != last ? slow_unbox<Number>(s, *first++) : 0;
+	size_t size{first != last ? slow_unbox<uint64_t>(s, *first++) : 0};
 	Character fill = first != last ? slow_unbox<Character>(s, *first++) : ' ';
-	return s.gc.alloc_tagged<String>(s, n, static_cast<char>(fill));
+	return s.gc.alloc_tagged<String>(s, size, static_cast<char>(fill));
 }
 
 static Atom string_ctor(VmState& s, Atom* first, Atom* last)
@@ -1220,8 +1186,8 @@ static Atom substring(VmState& s, Atom* first, Atom* last)
 {
 	String& str = *slow_unbox<String>(s, first[0]);
 	size_t n = str.size();
-	size_t start = last - first >= 2 ? static_cast<size_t>(slow_unbox<Number>(s, first[1])) : 0;
-	size_t end = last - first >= 3 ? static_cast<size_t>(slow_unbox<Number>(s, first[2])) : n;
+	size_t start{last - first >= 2 ? slow_unbox<uint64_t>(s, first[1]) : 0};
+	size_t end{last - first >= 3 ? slow_unbox<uint64_t>(s, first[2]) : n};
 	JET_DIE_UNLESS(&s, start <= end && end <= n, "substring: bad range [{}, {}) for length {}", start, end,
 	               n);
 	return s.gc.alloc_tagged<String>(s, str.substr(start, end - start));
@@ -1231,8 +1197,8 @@ static Atom string_copy(VmState& s, Atom* first, Atom* last)
 {
 	String& str = *slow_unbox<String>(s, first[0]);
 	size_t n = str.size();
-	size_t start = last - first >= 2 ? static_cast<size_t>(slow_unbox<Number>(s, first[1])) : 0;
-	size_t end = last - first >= 3 ? static_cast<size_t>(slow_unbox<Number>(s, first[2])) : n;
+	size_t start{last - first >= 2 ? slow_unbox<uint64_t>(s, first[1]) : 0};
+	size_t end{last - first >= 3 ? slow_unbox<uint64_t>(s, first[2]) : n};
 	JET_DIE_UNLESS(&s, start <= end && end <= n, "string-copy: bad range [{}, {}) for length {}", start,
 	               end, n);
 	return s.gc.alloc_tagged<String>(s, str.substr(start, end - start));
@@ -1343,9 +1309,7 @@ static Number char_to_integer(VmState& s, Atom ch)
 
 static Atom integer_to_char(VmState& s, Atom n)
 {
-	double v = slow_unbox<Number>(s, n);
-	JET_DIE_UNLESS(&s, is_byte(s, n), "integer->char: out of range {}", v);
-	return box(static_cast<Character>(static_cast<uint8_t>(v)));
+	return box(static_cast<Character>(as_uint8_or_die(s, n)));
 }
 
 template <typename Op>
@@ -1700,9 +1664,8 @@ static void store_scheme_field(Struct* instance, uint64_t index, Atom value)
 
 static uint64_t resolve_tuple_field(VmState& s, Struct* instance, Atom key)
 {
-	JET_DIE_UNLESS(&s, is_nonnegative_integer(s, key), "ref expects a non-negative integer index");
+	size_t index{slow_unbox<uint64_t>(s, key)};
 	Tuple* tuple = static_cast<Tuple*>(instance);
-	size_t index = static_cast<size_t>(unbox<Number>(key));
 	JET_DIE_UNLESS(&s, index < tuple->size, "ref index out of bounds");
 	return index;
 }
@@ -1846,8 +1809,7 @@ struct TupleAccess
 	static Atom load_or_hole(VmState& s, Atom object, Atom key)
 	{
 		Tuple* tuple = static_cast<Tuple*>(unbox<Struct>(object));
-		JET_DIE_UNLESS(&s, is_nonnegative_integer(s, key), "ref expects a non-negative integer index");
-		size_t index = static_cast<size_t>(unbox<Number>(key));
+		size_t index{slow_unbox<uint64_t>(s, key)};
 		return index < tuple->size ? tuple->elements[index] : hole();
 	}
 

@@ -7060,7 +7060,7 @@ namespace
 					for (uint32_t i = 0; i < e->call.args.size(); ++i)
 					{
 						Atom byte_val = datum_to_atom(s, e->call.args[i]);
-						bv.push_back(static_cast<uint8_t>(unbox<Number>(byte_val)));
+						bv.push_back(as_uint8_or_die(s, byte_val));
 					}
 					return s.gc.alloc_tagged<ByteVector>(s, std::move(bv));
 				}
