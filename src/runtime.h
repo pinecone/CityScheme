@@ -1037,24 +1037,16 @@ JET_ALWAYS_INLINE bool index_of_key(size_t size, Atom key, FieldIc& ic, size_t& 
 	}
 	else
 	{
-		uint64_t exponent{(key.bits >> 52) - 1023};
-		if (exponent > 63) [[unlikely]]
+		uint64_t shift{(1023 + 63) - (key.bits >> 52)};
+		if (shift > 63) [[unlikely]]
 		{
 			return false;
 		}
-		uint64_t significand{(key.bits & 0x000f'ffff'ffff'ffffULL) | 0x0010'0000'0000'0000ULL};
-		if (exponent > 52) [[unlikely]]
+		uint64_t significand{(key.bits << 11) | (1ULL << 63)};
+		index = significand >> shift;
+		if ((index << shift) != significand) [[unlikely]]
 		{
-			index = significand << (exponent - 52);
-		}
-		else
-		{
-			uint64_t shift{52 - exponent};
-			index = significand >> shift;
-			if ((index << shift) != significand) [[unlikely]]
-			{
-				return false;
-			}
+			return false;
 		}
 	}
 	if (index >= size) [[unlikely]]
